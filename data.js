@@ -173,17 +173,15 @@
   }
   // liga/desliga o acesso DE VERDADE ao Gestão de Sacas (tabela usuarios_sacas
   // dele, não só o flag local) — mesma conta de login, então funciona com o
-  // mesmo usuário/senha assim que essa linha existir.
+  // mesmo usuário/senha assim que essa linha existir. A escrita em si roda
+  // dentro da função pa_sync_acesso_sacas (RPC) em vez de um insert/delete
+  // direto na tabela — evita depender de RLS avaliar uma subconsulta contra
+  // outra tabela pela API REST.
   async function atualizarModuloSacas(id, nome, perfil, ligar) {
     var r = await sb.from("pa_usuarios").update({ modulo_sacas: ligar }).eq("id", id);
     if (r.error) throw r.error;
-    if (ligar) {
-      var up = await sb.from("usuarios_sacas").upsert({ id: id, nome: nome, perfil: perfil === "gestor" ? "gestor" : "operador" });
-      if (up.error) throw new Error("Módulo salvo, mas não consegui liberar o acesso real no Sacas: " + up.error.message);
-    } else {
-      var del = await sb.from("usuarios_sacas").delete().eq("id", id);
-      if (del.error) throw new Error("Módulo salvo, mas não consegui remover o acesso real no Sacas: " + del.error.message);
-    }
+    var rpc = await sb.rpc("pa_sync_acesso_sacas", { alvo_id: id, alvo_nome: nome, alvo_perfil: perfil, ligar: ligar });
+    if (rpc.error) throw new Error("Módulo salvo, mas não consegui " + (ligar ? "liberar" : "remover") + " o acesso real no Sacas: " + rpc.error.message);
   }
   // tira a pessoa dos dois sistemas (pa_usuarios + usuarios_sacas). A conta de
   // login em si (Supabase Auth) continua existindo — sem ela não fica logada
@@ -191,7 +189,7 @@
   // (Authentication > Users > excluir), não dá pra fazer isso com a chave
   // anon do navegador.
   async function excluirUsuario(id) {
-    await sb.from("usuarios_sacas").delete().eq("id", id);
+    await sb.rpc("pa_sync_acesso_sacas", { alvo_id: id, alvo_nome: "", alvo_perfil: "operador", ligar: false });
     var r = await sb.from("pa_usuarios").delete().eq("id", id);
     if (r.error) throw r.error;
   }
