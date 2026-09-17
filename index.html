@@ -305,7 +305,7 @@ td.code, td.mono{font-family:"IBM Plex Mono"; font-size:12.5px}
         <div class="login-error" id="login-error"></div>
         <button type="submit" class="btn btn-primary" id="li-btn">Entrar</button>
       </form>
-      <p class="foot">Não tem login? Peça pro gestor liberar seu acesso.<br><a href="mobile.html" style="color:var(--accent)">Ir para a versão mobile</a></p>
+      <p class="foot">Não tem login? Peça pro gestor liberar seu acesso.</p>
     </div>
   </section>
 
@@ -314,6 +314,7 @@ td.code, td.mono{font-family:"IBM Plex Mono"; font-size:12.5px}
     <div class="topbar">
       <div class="brand"><span class="dot"></span> Ponto de Retirada</div>
       <div class="spacer"></div>
+      <a href="mobile.html" class="linklike" style="font-size:12.5px;margin-right:4px">Versão mobile</a>
       <div class="who" id="who-badge-portal"></div>
     </div>
     <div class="wrap">
@@ -331,6 +332,7 @@ td.code, td.mono{font-family:"IBM Plex Mono"; font-size:12.5px}
       <button class="linklike" id="btn-back-portal" style="font-size:13px">&larr; Módulos</button>
       <div class="crumb">Pacotes Avulsos / <b id="crumb-view">Painel</b></div>
       <div class="spacer"></div>
+      <a href="mobile.html" class="linklike" style="font-size:12.5px;margin-right:4px">Versão mobile</a>
       <div class="who" id="who-badge-app"></div>
     </div>
     <div class="appbody">
@@ -463,14 +465,35 @@ td.code, td.mono{font-family:"IBM Plex Mono"; font-size:12.5px}
           <tbody id="tbl-users"></tbody>
         </table>
       </div>
-      <div class="card" style="max-width:640px">
-        <div style="font-weight:600; font-size:13.5px; margin-bottom:8px">Criar um novo login</div>
-        <p style="font-size:12.5px;color:var(--ink-soft);margin:0">
-          Isso não é feito por aqui, é feito uma vez no painel do Supabase (mesmo passo do Gestão de Sacas):
-          <b>Authentication &gt; Users &gt; Add user</b>, com e-mail <span class="mono">usuario@pontoretirada.local</span>,
-          marcando "Auto Confirm User". Depois roda um insert em <span class="mono">pa_usuarios</span> com o UID
-          gerado (veja <span class="mono">sql/schema.sql</span>). Assim que existir, a pessoa aparece na lista acima
-          pra você liberar os módulos.
+      <div class="card" style="max-width:520px">
+        <div style="font-weight:600; font-size:13.5px; margin-bottom:12px">Novo usuário</div>
+        <form class="form" id="form-novo-usuario" style="gap:12px">
+          <div class="field">
+            <label for="nu-nome">Nome</label>
+            <input type="text" id="nu-nome" placeholder="Nome completo">
+          </div>
+          <div class="field">
+            <label for="nu-usuario">Usuário (login)</label>
+            <input type="text" id="nu-usuario" class="mono-input" placeholder="ex.: marina" autocapitalize="off" autocomplete="off">
+            <div class="help">Vira <span class="mono">usuario@gestaosacas.local</span> por trás dos panos.</div>
+          </div>
+          <div class="field">
+            <label for="nu-senha">Senha</label>
+            <input type="text" id="nu-senha" class="mono-input" placeholder="mínimo 6 caracteres" autocomplete="off">
+          </div>
+          <div class="field">
+            <label for="nu-perfil">Perfil</label>
+            <select id="nu-perfil">
+              <option value="funcionario">Funcionário</option>
+              <option value="gestor">Gestor</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary" style="align-self:flex-start">Criar login</button>
+        </form>
+        <p style="font-size:11.5px;color:var(--ink-faint);margin:14px 0 0">
+          A pessoa já tem login no Gestão de Sacas? Não crie de novo — no Supabase, em
+          <b>Authentication &gt; Users</b>, copie o UID dela e libere o acesso direto por SQL
+          (veja <span class="mono">sql/schema.sql</span>) em vez de criar conta nova aqui.
         </p>
       </div>
     </div>
@@ -1055,6 +1078,30 @@ async function renderUsers(){
     tr.appendChild(modCell);
     tb.appendChild(tr);
   });
+
+  var formNovo = $("#form-novo-usuario");
+  if(!formNovo._wired){
+    formNovo._wired = true;
+    formNovo.addEventListener("submit", async function(e){
+      e.preventDefault();
+      var nome = $("#nu-nome").value.trim();
+      var usuario = $("#nu-usuario").value.trim();
+      var senha = $("#nu-senha").value;
+      var perfil = $("#nu-perfil").value;
+      var btn = formNovo.querySelector("button[type=submit]"); btn.disabled = true;
+      try{
+        var r = await PA.criarUsuarioLogin(usuario, senha, nome, perfil, true, false);
+        if(r.precisaConfirmar){
+          toast("Login criado, mas esse projeto pede confirmação de e-mail — peça pra desativar em Authentication > Providers > Email. Até lá essa conta não consegue entrar.", true);
+        } else {
+          toast("Login de " + nome + " criado — já pode entrar com o usuário \"" + usuario + "\".");
+        }
+        formNovo.reset();
+        await renderUsers();
+      }catch(err){ toast(erroMsg(err), true); }
+      btn.disabled = false;
+    });
+  }
 }
 
 /* ---------------- boot ---------------- */

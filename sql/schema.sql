@@ -4,6 +4,17 @@
 -- mesmo ponto de retirada) — por isso as tabelas aqui usam o prefixo
 -- "pa_" e não tocam em nada de usuarios_sacas/motoristas/fila/registros.
 -- Rode este arquivo inteiro em Supabase > SQL Editor > New query.
+--
+-- Se você já rodou uma versão anterior deste schema (sem a política de
+-- INSERT do gestor), rode só isso abaixo em vez do arquivo inteiro:
+--
+--   create policy "gestor cria qualquer perfil" on pa_usuarios
+--     for insert with check (
+--       exists (select 1 from pa_usuarios g where g.id = auth.uid() and g.perfil = 'gestor')
+--     );
+--
+-- Isso é o que permite o Gestor cadastrar usuário novo direto pela tela
+-- "Gerenciar Usuários" do app, sem precisar abrir o Supabase.
 -- ============================================================
 
 create extension if not exists pgcrypto;
@@ -61,6 +72,11 @@ create policy "equipe autenticada le todo mundo" on pa_usuarios
 
 create policy "cada um cria o proprio perfil" on pa_usuarios
   for insert with check (auth.uid() = id);
+
+create policy "gestor cria qualquer perfil" on pa_usuarios
+  for insert with check (
+    exists (select 1 from pa_usuarios g where g.id = auth.uid() and g.perfil = 'gestor')
+  );
 
 create policy "dono atualiza o proprio perfil" on pa_usuarios
   for update using (auth.uid() = id) with check (auth.uid() = id);

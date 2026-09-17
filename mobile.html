@@ -293,7 +293,7 @@ input.mono-input{font-family:"IBM Plex Mono"; letter-spacing:.02em}
         <div class="login-error" id="login-error"></div>
         <button type="submit" class="btn btn-primary" id="li-btn">Entrar</button>
       </form>
-      <p class="foot">Não tem login? Peça pro gestor liberar seu acesso.<br><a href="index.html" style="color:var(--accent)">Ir para a versão desktop</a></p>
+      <p class="foot">Não tem login? Peça pro gestor liberar seu acesso.</p>
     </div>
   </section>
 
@@ -302,6 +302,7 @@ input.mono-input{font-family:"IBM Plex Mono"; letter-spacing:.02em}
     <div class="topbar">
       <div class="brand"><span class="dot"></span> Ponto de Retirada</div>
       <div class="spacer"></div>
+      <a href="index.html" class="linklike" style="font-size:11.5px;margin-right:2px">Versão desktop</a>
       <div class="avatar" id="portal-avatar"></div>
     </div>
     <div class="wrap">
@@ -401,6 +402,35 @@ input.mono-input{font-family:"IBM Plex Mono"; letter-spacing:.02em}
       <div id="pv-usuarios" hidden>
         <div class="mainhead"><h2>Usuários</h2><p>Quem acessa e quais módulos.</p></div>
         <div id="users-list"></div>
+        <div class="card" style="margin-top:6px">
+          <div style="font-weight:600; font-size:13.5px; margin-bottom:12px">Novo usuário</div>
+          <form class="form" id="form-novo-usuario">
+            <div class="field">
+              <label for="nu-nome">Nome</label>
+              <input type="text" id="nu-nome" placeholder="Nome completo">
+            </div>
+            <div class="field">
+              <label for="nu-usuario">Usuário (login)</label>
+              <input type="text" id="nu-usuario" class="mono-input" placeholder="ex.: marina" autocapitalize="off" autocomplete="off">
+              <div class="help">Vira usuario@gestaosacas.local por trás dos panos.</div>
+            </div>
+            <div class="field">
+              <label for="nu-senha">Senha</label>
+              <input type="text" id="nu-senha" class="mono-input" placeholder="mínimo 6 caracteres" autocomplete="off">
+            </div>
+            <div class="field">
+              <label for="nu-perfil">Perfil</label>
+              <select id="nu-perfil">
+                <option value="funcionario">Funcionário</option>
+                <option value="gestor">Gestor</option>
+              </select>
+            </div>
+            <button type="submit" class="btn btn-primary">Criar login</button>
+          </form>
+          <p style="font-size:11px;color:var(--ink-faint);margin:12px 0 0">
+            Pessoa já tem login no Sacas? Não crie de novo — libere o acesso dela por SQL (sql/schema.sql).
+          </p>
+        </div>
       </div>
     </div>
 
@@ -443,6 +473,10 @@ input.mono-input{font-family:"IBM Plex Mono"; letter-spacing:.02em}
         <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
         Voltar aos módulos
       </button>
+      <a class="sheet-item" href="index.html" style="text-decoration:none;color:inherit">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg>
+        Versão desktop
+      </a>
       <button class="sheet-item danger" id="sheet-sair">
         <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
         Sair
@@ -975,6 +1009,30 @@ async function renderUsersList(){
     card.appendChild(modRow);
     wrap.appendChild(card);
   });
+
+  var formNovo = $("#form-novo-usuario");
+  if(!formNovo._wired){
+    formNovo._wired = true;
+    formNovo.addEventListener("submit", async function(e){
+      e.preventDefault();
+      var nome = $("#nu-nome").value.trim();
+      var usuario = $("#nu-usuario").value.trim();
+      var senha = $("#nu-senha").value;
+      var perfil = $("#nu-perfil").value;
+      var btn = formNovo.querySelector("button[type=submit]"); btn.disabled = true;
+      try{
+        var r = await PA.criarUsuarioLogin(usuario, senha, nome, perfil, true, false);
+        if(r.precisaConfirmar){
+          toast("Login criado, mas o projeto pede confirmação de e-mail — peça pra desativar isso no Supabase.", true);
+        } else {
+          toast("Login de " + nome + " criado.");
+        }
+        formNovo.reset();
+        await renderUsersList();
+      }catch(err){ toast(erroMsg(err), true); }
+      btn.disabled = false;
+    });
+  }
 }
 
 /* ---------------- nav ---------------- */

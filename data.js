@@ -130,6 +130,34 @@
   }
 
   /* ---------- usuários ---------- */
+  async function criarUsuarioLogin(usuario, senha, nome, perfil, moduloPacotes, moduloSacas) {
+    if (!usuario || !usuario.trim()) throw new Error("Informe o usuário (login).");
+    if (!senha || senha.length < 6) throw new Error("A senha precisa ter pelo menos 6 caracteres.");
+    if (!nome || !nome.trim()) throw new Error("Informe o nome.");
+    var email = toAuthEmail(usuario);
+    // client à parte, sem salvar sessão — pra não trocar o login de quem está
+    // criando o usuário (o gestor) pelo login da conta recém-criada.
+    var tempClient = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey, {
+      auth: { persistSession: false, autoRefreshToken: false }
+    });
+    var r = await tempClient.auth.signUp({ email: email, password: senha });
+    if (r.error) {
+      var msg = String(r.error.message || "").toLowerCase();
+      if (msg.indexOf("already registered") !== -1 || msg.indexOf("already exists") !== -1) {
+        throw new Error("Já existe uma conta com esse usuário.");
+      }
+      throw r.error;
+    }
+    if (!r.data.user) throw new Error("Não consegui criar o login — tenta de novo.");
+    var precisaConfirmar = !r.data.session;
+    var ins = await sb.from("pa_usuarios").insert({
+      id: r.data.user.id, nome: nome, perfil: perfil,
+      modulo_pacotes: moduloPacotes, modulo_sacas: moduloSacas
+    });
+    if (ins.error) throw ins.error;
+    return { id: r.data.user.id, precisaConfirmar: precisaConfirmar };
+  }
+
   async function listarUsuarios() {
     var r = await sb.from("pa_usuarios").select("*").order("criado_em");
     if (r.error) throw r.error;
@@ -148,6 +176,6 @@
     listarEstoque: listarEstoque, listarHistorico: listarHistorico,
     cadastrarPacote: cadastrarPacote, cadastrarEmMassaComLocais: cadastrarEmMassaComLocais,
     entregarPacote: entregarPacote, transferirPacote: transferirPacote, buscarPorCodigo: buscarPorCodigo,
-    listarUsuarios: listarUsuarios, atualizarUsuario: atualizarUsuario
+    listarUsuarios: listarUsuarios, atualizarUsuario: atualizarUsuario, criarUsuarioLogin: criarUsuarioLogin
   };
 })();

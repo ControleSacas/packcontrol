@@ -39,32 +39,34 @@ completa com `@gestaosacas.local` (constante `authDomain` em `config.js`)
 antes de mandar pro Supabase — **de propósito o MESMO domínio que o
 Gestão de Sacas usa**, porque é o mesmo projeto Supabase por trás dos dois.
 
-**Se a pessoa já tem login no Gestão de Sacas**, não precisa criar conta
-nova — a senha já existe. Só:
+**Depois que existir o primeiro gestor**, ele mesmo cria os próximos logins
+direto pela tela **Gerenciar Usuários** do app (formulário "Novo usuário" —
+nome, usuário, senha, perfil). Não precisa mais abrir o Supabase pra isso.
 
-1. Vá em **Authentication > Users**, ache a linha da pessoa (e-mail
-   `usuario@gestaosacas.local`) e copie o **User UID**.
-2. Rode o insert do passo 3 abaixo com esse UID. Pronto — ela já consegue
-   entrar no Pacotes Avulsos com o mesmo usuário/senha do Sacas.
+⚠️ **Antes de usar essa tela, desative a confirmação de e-mail do projeto**
+(**Authentication > Providers > Email > "Confirm email"**, desliga) — sem
+isso, a conta é criada mas fica esperando um e-mail de confirmação que
+nunca chega (o domínio `@gestaosacas.local` não existe de verdade), e a
+pessoa não consegue entrar. É seguro desligar: o app nunca manda e-mail
+real, só usa esse domínio como formalidade técnica do Supabase Auth.
 
-**Se a pessoa não tem login em nenhum dos dois ainda:**
+**O primeiro gestor** (pra existir alguém que possa criar os outros) precisa
+ser criado manualmente, uma única vez:
 
-1. **Authentication > Users > Add user** — e-mail
-   `usuario@gestaosacas.local` (troque `usuario` pelo login da pessoa),
-   defina uma senha e **marque "Auto Confirm User"**.
-2. Copie o **User UID**.
-3. No **SQL Editor**, rode um insert (modelo completo com os 4 exemplos do
-   protótipo em `sql/schema.sql`, no final do arquivo):
+- **Se a pessoa já tem login no Gestão de Sacas**: não crie conta nova — vá
+  em **Authentication > Users**, ache a linha dela (e-mail
+  `usuario@gestaosacas.local`), copie o **User UID** e rode:
 
-   ```sql
-   insert into pa_usuarios (id, nome, perfil, modulo_pacotes, modulo_sacas) values
-     ('cole-o-uuid-aqui', 'Nome da pessoa', 'funcionario', true, false);
-   ```
+  ```sql
+  insert into pa_usuarios (id, nome, perfil, modulo_pacotes, modulo_sacas) values
+    ('cole-o-uuid-aqui', 'Nome da pessoa', 'gestor', true, true);
+  ```
 
-   `perfil = 'gestor'` também vê a tela **Gerenciar Usuários** (liberar
-   módulo por pessoa) e pode promover/rebaixar outros gestores. Depois de
-   criado, dá pra ajustar tudo isso (perfil, módulos) direto pela tela —
-   esse insert é só pro primeiro gestor existir.
+- **Se não tem login em nenhum dos dois ainda**: **Authentication > Users >
+  Add user**, e-mail `usuario@gestaosacas.local`, defina uma senha e
+  **marque "Auto Confirm User"**, copie o UID e rode o mesmo insert acima.
+
+Depois disso, esse gestor já cria e libera todo mundo pela tela.
 
 ## 3. Testar localmente
 
