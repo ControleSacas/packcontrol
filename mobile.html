@@ -425,6 +425,32 @@ input.mono-input{font-family:"IBM Plex Mono"; letter-spacing:.02em}
         <div id="hist-list"></div>
       </div>
 
+      <!-- RELATÓRIO -->
+      <div id="pv-relatorio" hidden>
+        <div class="mainhead"><h2>Relatório</h2><p>Recebidos e despachados no período.</p></div>
+        <div class="card" style="margin-bottom:16px">
+          <div style="display:flex;gap:8px;margin-bottom:14px">
+            <button type="button" class="toggle active" id="rel-tab-mes">Por mês</button>
+            <button type="button" class="toggle" id="rel-tab-periodo">Por período</button>
+          </div>
+          <div id="rel-filtro-mes" class="field" style="margin:0">
+            <label for="rel-mes">Mês</label>
+            <input type="month" id="rel-mes">
+          </div>
+          <div id="rel-filtro-periodo" style="display:flex;flex-direction:column;gap:12px" hidden>
+            <div class="field" style="margin:0">
+              <label for="rel-inicio">De</label>
+              <input type="date" id="rel-inicio">
+            </div>
+            <div class="field" style="margin:0">
+              <label for="rel-fim">Até</label>
+              <input type="date" id="rel-fim">
+            </div>
+          </div>
+        </div>
+        <div class="kpis" id="rel-kpis"></div>
+      </div>
+
       <!-- USUÁRIOS -->
       <div id="pv-usuarios" hidden>
         <div class="mainhead"><h2>Usuários</h2><p>Quem acessa e quais módulos.</p></div>
@@ -488,6 +514,10 @@ input.mono-input{font-family:"IBM Plex Mono"; letter-spacing:.02em}
       <button class="sheet-item" id="sheet-historico">
         <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 7v5l3 3"/></svg>
         Histórico de entregas
+      </button>
+      <button class="sheet-item" id="sheet-relatorio">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-6 3 3 5-7"/></svg>
+        Relatório
       </button>
       <button class="sheet-item" id="sheet-usuarios" hidden>
         <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/></svg>
@@ -719,12 +749,12 @@ async function renderPortal(){
 }
 
 /* ---------------- app ---------------- */
-var NAV_LABELS = {painel:"Painel", cadastrar:"Cadastrar", entregar:"Buscar", locais:"Localizações", historico:"Histórico", usuarios:"Usuários"};
+var NAV_LABELS = {painel:"Painel", cadastrar:"Cadastrar", entregar:"Buscar", locais:"Localizações", historico:"Histórico", usuarios:"Usuários", relatorio:"Relatório"};
 
 async function renderApp(){
   state.locais = await PA.listarLocalizacoes();
   $all("#tabbar > button[data-view]").forEach(function(b){ b.classList.toggle("on", b.dataset.view===state.appView) });
-  ["painel","cadastrar","entregar","locais","historico","usuarios"].forEach(function(v){
+  ["painel","cadastrar","entregar","locais","historico","usuarios","relatorio"].forEach(function(v){
     var node = $("#pv-"+v); if(node) node.hidden = (v !== state.appView);
   });
   if(state.appView==="painel") await renderPainel();
@@ -733,6 +763,7 @@ async function renderApp(){
   if(state.appView==="locais") await renderLocaisList();
   if(state.appView==="historico") await renderHistoricoList();
   if(state.appView==="usuarios") await renderUsersList();
+  if(state.appView==="relatorio") await renderRelatorio();
 }
 
 async function renderPainel(){
@@ -1012,6 +1043,73 @@ async function renderHistoricoList(filtro){
   }
 }
 
+/* ---------------- relatório ---------------- */
+function mesAtualStr(){
+  var d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0");
+}
+function dataStr(d){ return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0"); }
+function inicioMesISO(mesStr){ return mesStr + "-01T00:00:00"; }
+function proximoMesISO(mesStr){
+  var p = mesStr.split("-"); var ano = parseInt(p[0],10), mes = parseInt(p[1],10);
+  return new Date(ano, mes, 1).toISOString();
+}
+function proximoDiaISO(diaStr){
+  var d = new Date(diaStr+"T00:00:00"); d.setDate(d.getDate()+1); return d.toISOString();
+}
+
+async function renderRelatorio(){
+  var mesInp = $("#rel-mes"), inicioInp = $("#rel-inicio"), fimInp = $("#rel-fim");
+  var tabMes = $("#rel-tab-mes"), tabPeriodo = $("#rel-tab-periodo");
+  var filtroMes = $("#rel-filtro-mes"), filtroPeriodo = $("#rel-filtro-periodo");
+
+  if(!mesInp.value) mesInp.value = mesAtualStr();
+  if(!inicioInp.value){
+    var hoje = new Date();
+    inicioInp.value = dataStr(new Date(hoje.getFullYear(), hoje.getMonth(), 1));
+    fimInp.value = dataStr(hoje);
+  }
+  if(state.relModo === undefined) state.relModo = "mes";
+
+  async function atualizar(){
+    var inicioISO, fimISO;
+    if(state.relModo === "mes"){
+      if(!mesInp.value) return;
+      inicioISO = inicioMesISO(mesInp.value);
+      fimISO = proximoMesISO(mesInp.value);
+    } else {
+      if(!inicioInp.value || !fimInp.value) return;
+      inicioISO = inicioInp.value + "T00:00:00";
+      fimISO = proximoDiaISO(fimInp.value);
+    }
+    var kpisEl = $("#rel-kpis");
+    kpisEl.innerHTML = '<div class="loading">Calculando…</div>';
+    try{
+      var dados = await PA.relatorioPeriodo(inicioISO, fimISO);
+      kpisEl.innerHTML = "";
+      kpisEl.appendChild(el("div",{class:"kpi"},[el("div",{class:"lbl", text:"Recebidos"}), el("div",{class:"val", text:String(dados.recebidos)})]));
+      kpisEl.appendChild(el("div",{class:"kpi"},[el("div",{class:"lbl", text:"Despachados"}), el("div",{class:"val", text:String(dados.despachados)})]));
+    }catch(err){ kpisEl.innerHTML = ""; toast(erroMsg(err), true); }
+  }
+
+  if(!tabMes._wired){
+    tabMes._wired = true; tabPeriodo._wired = true;
+    tabMes.addEventListener("click", function(){
+      state.relModo = "mes"; tabMes.classList.add("active"); tabPeriodo.classList.remove("active");
+      filtroMes.hidden = false; filtroPeriodo.hidden = true; atualizar();
+    });
+    tabPeriodo.addEventListener("click", function(){
+      state.relModo = "periodo"; tabPeriodo.classList.add("active"); tabMes.classList.remove("active");
+      filtroMes.hidden = true; filtroPeriodo.hidden = false; atualizar();
+    });
+    mesInp.addEventListener("change", atualizar);
+    inicioInp.addEventListener("change", atualizar);
+    fimInp.addEventListener("change", atualizar);
+  }
+
+  await atualizar();
+}
+
 async function renderUsersList(){
   var wrap = $("#users-list"); wrap.innerHTML = '<div class="loading">Carregando…</div>';
   var usuarios = await PA.listarUsuarios();
@@ -1112,6 +1210,7 @@ function fecharSheet(){ $("#sheet-overlay").hidden = true; }
 $("#btn-mais").addEventListener("click", abrirSheet);
 $("#sheet-overlay").addEventListener("click", function(e){ if(e.target.id==="sheet-overlay") fecharSheet() });
 $("#sheet-historico").addEventListener("click", async function(){ fecharSheet(); state.appView="historico"; await renderApp(); });
+$("#sheet-relatorio").addEventListener("click", async function(){ fecharSheet(); state.appView="relatorio"; await renderApp(); });
 $("#sheet-usuarios").addEventListener("click", async function(){ fecharSheet(); state.appView="usuarios"; await renderApp(); });
 $("#sheet-portal").addEventListener("click", async function(){ fecharSheet(); await renderPortal(); show("view-portal") });
 $("#sheet-sair").addEventListener("click", async function(){ fecharSheet(); await PA.logout(); state.sessao=null; show("view-login") });

@@ -129,6 +129,18 @@
     return r.data;
   }
 
+  /* ---------- relatório ---------- */
+  // inicioISO/fimISOExclusivo: strings ISO; fim é exclusivo (ex.: "2026-10-01T00:00:00" pra pegar até 30/09).
+  async function relatorioPeriodo(inicioISO, fimISOExclusivo) {
+    var recebidos = await sb.from("pa_pacotes").select("id", { count: "exact", head: true })
+      .gte("cadastrado_em", inicioISO).lt("cadastrado_em", fimISOExclusivo);
+    if (recebidos.error) throw recebidos.error;
+    var despachados = await sb.from("pa_pacotes").select("id", { count: "exact", head: true })
+      .eq("status", "entregue").gte("entregue_em", inicioISO).lt("entregue_em", fimISOExclusivo);
+    if (despachados.error) throw despachados.error;
+    return { recebidos: recebidos.count || 0, despachados: despachados.count || 0 };
+  }
+
   /* ---------- usuários ---------- */
   async function criarUsuarioLogin(usuario, senha, nome, perfil, moduloPacotes, moduloSacas) {
     if (!usuario || !usuario.trim()) throw new Error("Informe o usuário (login).");
@@ -202,6 +214,7 @@
     listarEstoque: listarEstoque, listarHistorico: listarHistorico,
     cadastrarPacote: cadastrarPacote, cadastrarEmMassaComLocais: cadastrarEmMassaComLocais,
     entregarPacote: entregarPacote, transferirPacote: transferirPacote, buscarPorCodigo: buscarPorCodigo,
+    relatorioPeriodo: relatorioPeriodo,
     listarUsuarios: listarUsuarios, atualizarUsuario: atualizarUsuario, criarUsuarioLogin: criarUsuarioLogin,
     atualizarModuloSacas: atualizarModuloSacas, excluirUsuario: excluirUsuario
   };

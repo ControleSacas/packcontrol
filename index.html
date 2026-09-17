@@ -384,6 +384,10 @@ td.code, td.mono{font-family:"IBM Plex Mono"; font-size:12.5px}
           <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 7v5l3 3"/></svg>
           Histórico
         </button>
+        <button data-view="relatorio">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-6 3 3 5-7"/></svg>
+          Relatório
+        </button>
       </nav>
 
       <div class="main">
@@ -468,6 +472,32 @@ td.code, td.mono{font-family:"IBM Plex Mono"; font-size:12.5px}
               <tbody id="tbl-historico"></tbody>
             </table>
           </div>
+        </div>
+
+        <!-- RELATÓRIO -->
+        <div id="pv-relatorio" hidden>
+          <div class="head"><h2>Relatório</h2><p>Quantos pacotes foram recebidos e despachados no período.</p></div>
+          <div class="card" style="max-width:560px;margin-bottom:18px">
+            <div style="display:flex;gap:8px;margin-bottom:16px">
+              <button type="button" class="toggle active" id="rel-tab-mes">Por mês</button>
+              <button type="button" class="toggle" id="rel-tab-periodo">Por período</button>
+            </div>
+            <div id="rel-filtro-mes" class="field" style="margin:0;max-width:200px">
+              <label for="rel-mes">Mês</label>
+              <input type="month" id="rel-mes">
+            </div>
+            <div id="rel-filtro-periodo" style="display:flex;gap:12px" hidden>
+              <div class="field" style="margin:0;flex:1">
+                <label for="rel-inicio">De</label>
+                <input type="date" id="rel-inicio">
+              </div>
+              <div class="field" style="margin:0;flex:1">
+                <label for="rel-fim">Até</label>
+                <input type="date" id="rel-fim">
+              </div>
+            </div>
+          </div>
+          <div class="kpis" id="rel-kpis"></div>
         </div>
       </div>
     </div>
@@ -765,14 +795,14 @@ async function renderPortal(){
 }
 
 /* ---------------- app: pacotes avulsos ---------------- */
-var NAV_LABELS = {painel:"Painel", cadastrar:"Cadastrar", entregar:"Buscar & Entregar", locais:"Localizações", historico:"Histórico"};
+var NAV_LABELS = {painel:"Painel", cadastrar:"Cadastrar", entregar:"Buscar & Entregar", locais:"Localizações", historico:"Histórico", relatorio:"Relatório"};
 
 async function renderApp(){
   whoBadge("#who-badge-app");
   state.locais = await PA.listarLocalizacoes();
   $all("#app-nav button").forEach(function(b){ b.classList.toggle("on", b.dataset.view===state.appView) });
   $("#crumb-view").textContent = NAV_LABELS[state.appView];
-  ["painel","cadastrar","entregar","locais","historico"].forEach(function(v){
+  ["painel","cadastrar","entregar","locais","historico","relatorio"].forEach(function(v){
     $("#pv-"+v).hidden = (v !== state.appView);
   });
   if(state.appView==="painel") await renderPainel();
@@ -780,6 +810,7 @@ async function renderApp(){
   if(state.appView==="entregar") renderEntregar();
   if(state.appView==="locais") await renderLocais();
   if(state.appView==="historico") await renderHistorico();
+  if(state.appView==="relatorio") await renderRelatorio();
 }
 
 async function renderPainel(){
@@ -1067,6 +1098,73 @@ async function renderHistorico(filtro){
     inp._wired = true;
     inp.addEventListener("input", function(){ renderHistorico(inp.value.trim()) });
   }
+}
+
+/* ---------------- relatório ---------------- */
+function mesAtualStr(){
+  var d = new Date();
+  return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0");
+}
+function dataStr(d){ return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0"); }
+function inicioMesISO(mesStr){ return mesStr + "-01T00:00:00"; }
+function proximoMesISO(mesStr){
+  var p = mesStr.split("-"); var ano = parseInt(p[0],10), mes = parseInt(p[1],10);
+  return new Date(ano, mes, 1).toISOString();
+}
+function proximoDiaISO(diaStr){
+  var d = new Date(diaStr+"T00:00:00"); d.setDate(d.getDate()+1); return d.toISOString();
+}
+
+async function renderRelatorio(){
+  var mesInp = $("#rel-mes"), inicioInp = $("#rel-inicio"), fimInp = $("#rel-fim");
+  var tabMes = $("#rel-tab-mes"), tabPeriodo = $("#rel-tab-periodo");
+  var filtroMes = $("#rel-filtro-mes"), filtroPeriodo = $("#rel-filtro-periodo");
+
+  if(!mesInp.value) mesInp.value = mesAtualStr();
+  if(!inicioInp.value){
+    var hoje = new Date();
+    inicioInp.value = dataStr(new Date(hoje.getFullYear(), hoje.getMonth(), 1));
+    fimInp.value = dataStr(hoje);
+  }
+  if(state.relModo === undefined) state.relModo = "mes";
+
+  async function atualizar(){
+    var inicioISO, fimISO;
+    if(state.relModo === "mes"){
+      if(!mesInp.value) return;
+      inicioISO = inicioMesISO(mesInp.value);
+      fimISO = proximoMesISO(mesInp.value);
+    } else {
+      if(!inicioInp.value || !fimInp.value) return;
+      inicioISO = inicioInp.value + "T00:00:00";
+      fimISO = proximoDiaISO(fimInp.value);
+    }
+    var kpisEl = $("#rel-kpis");
+    kpisEl.innerHTML = '<div class="loading">Calculando…</div>';
+    try{
+      var dados = await PA.relatorioPeriodo(inicioISO, fimISO);
+      kpisEl.innerHTML = "";
+      kpisEl.appendChild(el("div",{class:"kpi"},[el("div",{class:"lbl", text:"Recebidos no período"}), el("div",{class:"val", text:String(dados.recebidos)})]));
+      kpisEl.appendChild(el("div",{class:"kpi"},[el("div",{class:"lbl", text:"Despachados no período"}), el("div",{class:"val", text:String(dados.despachados)})]));
+    }catch(err){ kpisEl.innerHTML = ""; toast(erroMsg(err), true); }
+  }
+
+  if(!tabMes._wired){
+    tabMes._wired = true; tabPeriodo._wired = true;
+    tabMes.addEventListener("click", function(){
+      state.relModo = "mes"; tabMes.classList.add("active"); tabPeriodo.classList.remove("active");
+      filtroMes.hidden = false; filtroPeriodo.hidden = true; atualizar();
+    });
+    tabPeriodo.addEventListener("click", function(){
+      state.relModo = "periodo"; tabPeriodo.classList.add("active"); tabMes.classList.remove("active");
+      filtroMes.hidden = true; filtroPeriodo.hidden = false; atualizar();
+    });
+    mesInp.addEventListener("change", atualizar);
+    inicioInp.addEventListener("change", atualizar);
+    fimInp.addEventListener("change", atualizar);
+  }
+
+  await atualizar();
 }
 
 $("#btn-back-portal").addEventListener("click", async function(){ await renderPortal(); show("view-portal") });
