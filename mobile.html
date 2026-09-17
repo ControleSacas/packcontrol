@@ -1,0 +1,1007 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pacotes Avulsos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+:root{
+  color-scheme: light dark;
+  --bg:#efe9dc; --surface:#ffffff; --surface-2:#f6f1e6;
+  --ink:#2a2620; --ink-soft:#6d6555; --ink-faint:#9a9080;
+  --line:#ddd3bf; --line-strong:#c9bda3;
+  --accent:#2f4a7c; --accent-soft:#e7ecf5; --accent-ink:#ffffff;
+  --ok:#2c7a45; --ok-bg:#e3efe5;
+  --warn:#a6690f; --warn-bg:#f6e9d3;
+  --danger:#b23a2c; --danger-bg:#f6e2de;
+  --shadow:0 1px 2px rgba(42,38,32,.06), 0 8px 24px -12px rgba(42,38,32,.22);
+  --radius:14px;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#1b1915; --surface:#262320; --surface-2:#2f2b26; --ink:#ece5d6;
+    --ink-soft:#d8d1c2; --ink-faint:#b0a897; --line:#3b362e; --line-strong:#4a443a;
+    --accent:#9ab6e8; --accent-soft:#2a3346; --accent-ink:#16203a;
+    --ok:#67c187; --ok-bg:#21331f; --warn:#d69f56; --warn-bg:#38301d;
+    --danger:#e28b7e; --danger-bg:#3a251f;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 10px 28px -14px rgba(0,0,0,.6);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#1b1915; --surface:#262320; --surface-2:#2f2b26; --ink:#ece5d6;
+  --ink-soft:#d8d1c2; --ink-faint:#b0a897; --line:#3b362e; --line-strong:#4a443a;
+  --accent:#9ab6e8; --accent-soft:#2a3346; --accent-ink:#16203a;
+  --ok:#67c187; --ok-bg:#21331f; --warn:#d69f56; --warn-bg:#38301d;
+  --danger:#e28b7e; --danger-bg:#3a251f;
+  --shadow:0 1px 2px rgba(0,0,0,.3), 0 10px 28px -14px rgba(0,0,0,.6);
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
+  font-size:15px;
+}
+.mono{font-family:"IBM Plex Mono",ui-monospace,Consolas,monospace; font-variant-numeric:tabular-nums}
+h1,h2,h3{text-wrap:balance; margin:0; font-weight:600}
+button{font-family:inherit}
+[hidden]{display:none!important}
+
+.app{min-height:100vh; display:flex; flex-direction:column}
+
+/* login */
+#view-login{min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px}
+.login-card{width:100%; max-width:380px; background:var(--surface); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow); padding:26px 22px}
+.login-card .mark{display:flex; align-items:center; gap:10px}
+.login-card .mark .box{width:34px;height:34px;border-radius:9px;background:var(--accent);display:flex;align-items:center;justify-content:center}
+.login-card .mark .box svg{width:19px;height:19px;stroke:var(--accent-ink)}
+.login-card h1{font-size:19px; margin-top:14px}
+.login-card p.sub{color:var(--ink-soft); font-size:13.5px; margin:6px 0 20px}
+.login-form{display:flex; flex-direction:column; gap:12px}
+.login-error{background:var(--danger-bg); color:var(--danger); font-size:12.5px; padding:9px 12px; border-radius:8px; display:none}
+.login-error.show{display:block}
+.login-card .foot{margin-top:16px; font-size:11.5px; color:var(--ink-faint); text-align:center}
+
+/* top header */
+.topbar{
+  position:sticky; top:0; z-index:20; padding-top:env(safe-area-inset-top,0px);
+  display:flex; align-items:center; gap:10px; padding-inline:16px; padding-block:12px;
+  background:var(--surface); border-bottom:1px solid var(--line);
+}
+.topbar .brand{display:flex; align-items:center; gap:8px; font-weight:700; font-size:14.5px}
+.topbar .brand .dot{width:8px;height:8px;border-radius:50%;background:var(--accent)}
+.topbar .spacer{margin-left:auto}
+.topbar .avatar{width:26px;height:26px;border-radius:50%;background:var(--accent);color:var(--accent-ink);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:11px}
+
+/* portal */
+.wrap{padding:18px 16px 90px}
+.portal-head{margin-bottom:16px}
+.portal-head h1{font-size:20px}
+.portal-head p{color:var(--ink-soft); font-size:13.5px; margin-top:4px}
+.cards{display:flex; flex-direction:column; gap:12px}
+.pcard{
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);
+  padding:16px; display:flex; align-items:center; gap:14px; text-align:left; cursor:pointer;
+  box-shadow:var(--shadow); font-family:inherit;
+}
+.pcard:disabled{opacity:.5}
+.pcard .icon{width:40px;height:40px;border-radius:10px;background:var(--accent-soft);display:flex;align-items:center;justify-content:center; flex-shrink:0}
+.pcard .icon svg{width:21px;height:21px;stroke:var(--accent)}
+.pcard .txt{flex:1; min-width:0}
+.pcard h3{font-size:14.5px}
+.pcard p{font-size:12px; color:var(--ink-soft); margin-top:2px; line-height:1.4}
+.pcard .tag{display:inline-block; margin-top:6px; font-size:10px; text-transform:uppercase; letter-spacing:.05em; font-weight:600; padding:2px 7px; border-radius:99px}
+.tag-live{background:var(--ok-bg); color:var(--ok)}
+.tag-linked{background:var(--accent-soft); color:var(--accent)}
+.tag-admin{background:var(--accent-soft); color:var(--accent)}
+
+/* main app area */
+#view-app{flex:1; display:flex; flex-direction:column; min-height:100vh}
+.mainwrap{flex:1; padding:16px 16px calc(84px + env(safe-area-inset-bottom,0px))}
+.mainhead{margin-bottom:14px}
+.mainhead h2{font-size:18px}
+.mainhead p{color:var(--ink-soft); font-size:12.5px; margin-top:3px}
+
+.kpis{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:18px}
+.kpi{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:12px 14px; box-shadow:var(--shadow)}
+.kpi .lbl{font-size:10.5px; text-transform:uppercase; letter-spacing:.03em; color:var(--ink-faint); font-weight:600}
+.kpi .val{font-family:"IBM Plex Mono"; font-size:22px; font-weight:600; margin-top:4px}
+.kpi .val small{font-size:11px; font-weight:500; color:var(--ink-faint)}
+.kpi.warn .val{color:var(--warn)}
+.kpi.clickable{cursor:pointer}
+
+.section-title{display:flex; align-items:baseline; justify-content:space-between; margin:20px 0 8px}
+.section-title h3{font-size:12.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-soft)}
+.wall{display:grid; grid-template-columns:repeat(3,1fr); gap:8px}
+.shelf{
+  border-radius:11px; padding:10px 11px; color:#fff; min-height:66px;
+  display:flex; flex-direction:column; justify-content:space-between; box-shadow:var(--shadow);
+  cursor:pointer; border:none; text-align:left; font-family:inherit;
+}
+.shelf .code{font-family:"IBM Plex Mono"; font-weight:600; font-size:12px; opacity:.92}
+.shelf .qty{font-family:"IBM Plex Mono"; font-size:17px; font-weight:600}
+.shelf .qty small{font-size:10px; font-weight:500; opacity:.8}
+
+.listcard{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); overflow:hidden}
+.lrow{display:flex; align-items:center; gap:10px; padding:11px 14px; border-bottom:1px solid var(--line); font-size:13px}
+.lrow:last-child{border-bottom:none}
+.lrow .dot{width:7px;height:7px;border-radius:50%;flex-shrink:0}
+.lrow .dot.in{background:var(--accent)} .lrow .dot.out{background:var(--ok)}
+.lrow .code{font-family:"IBM Plex Mono"; font-size:12px; color:var(--ink-soft)}
+.lrow .who{margin-left:auto; color:var(--ink-faint); font-size:11px; text-align:right; white-space:nowrap}
+
+/* forms */
+.card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); padding:16px}
+.form{display:flex; flex-direction:column; gap:14px}
+.field label{display:block; font-size:12.5px; font-weight:600; color:var(--ink-soft); margin-bottom:5px}
+.field .help{font-size:11px; color:var(--ink-faint); margin-top:4px}
+input[type=text], input[type=search], input[type=password], select{
+  width:100%; padding:11px 12px; border:1px solid var(--line-strong); border-radius:9px;
+  background:var(--surface); color:var(--ink); font-size:16px; font-family:inherit;
+}
+input.mono-input{font-family:"IBM Plex Mono"; letter-spacing:.02em}
+.loc-tiles{display:flex; flex-wrap:wrap; gap:8px}
+.loc-tile{
+  border:1px solid var(--line-strong); background:var(--surface-2); color:var(--ink);
+  border-radius:9px; padding:10px 14px; font-family:"IBM Plex Mono"; font-weight:600; font-size:13px;
+  cursor:pointer; display:flex; align-items:center; gap:8px;
+}
+.loc-tile::before{content:""; width:9px; height:9px; border-radius:3px; background:var(--tilecolor,var(--ink-faint)); display:inline-block; flex-shrink:0}
+.loc-tile.on{background:var(--tilecolor); border-color:transparent; color:#fff}
+.loc-tile.on::before{background:rgba(255,255,255,.85)}
+.loc-tile.add{background:none; border-style:dashed; color:var(--ink-soft); font-family:inherit; font-weight:500}
+.loc-tile.add::before{display:none}
+.btn{
+  border:none; border-radius:10px; padding:12px 18px; font-size:14px; font-weight:600; cursor:pointer;
+  font-family:inherit; display:inline-flex; align-items:center; justify-content:center; gap:7px; width:100%;
+}
+.btn-primary{background:var(--accent); color:var(--accent-ink)}
+.btn-ghost{background:var(--surface-2); color:var(--ink-soft); border:1px solid var(--line-strong); width:auto}
+.btn-ok{background:var(--ok); color:#fff}
+.btn[disabled]{opacity:.5; cursor:not-allowed}
+.toast{
+  position:fixed; bottom:calc(78px + env(safe-area-inset-bottom,0px)); left:50%; transform:translateX(-50%) translateY(8px);
+  background:var(--ink); color:var(--bg); padding:10px 16px; border-radius:99px; font-size:12.5px; font-weight:500;
+  box-shadow:var(--shadow); opacity:0; pointer-events:none; transition:opacity .25s, transform .25s; z-index:60;
+  display:flex; align-items:center; gap:8px; max-width:88vw;
+}
+.toast.show{opacity:1; transform:translateX(-50%) translateY(0)}
+.toast .dot{width:7px;height:7px;border-radius:50%;background:var(--ok)}
+.toast.err .dot{background:var(--danger)}
+
+.search-box{position:relative}
+.search-box svg{position:absolute; left:13px; top:50%; transform:translateY(-50%); width:16px; height:16px; stroke:var(--ink-faint)}
+.search-box input{padding-left:37px}
+.results{margin-top:10px; display:flex; flex-direction:column; gap:8px}
+.result-row{
+  display:flex; align-items:center; gap:12px; padding:12px 14px; border:1px solid var(--line); border-radius:11px;
+  cursor:pointer; background:var(--surface);
+}
+.result-row .code{font-family:"IBM Plex Mono"; font-weight:600; font-size:13.5px}
+.result-row .loc-chip{margin-left:auto; font-size:11px; font-weight:700; padding:3px 9px; border-radius:99px; color:#fff}
+.empty-msg{color:var(--ink-faint); font-size:13px; padding:16px 4px; text-align:center}
+
+.pkg-detail{margin-top:16px}
+.pkg-detail .loc-big{
+  display:inline-flex; align-items:center; gap:9px; padding:8px 14px; border-radius:10px; color:#fff; font-weight:700;
+  font-family:"IBM Plex Mono"; font-size:18px; margin-bottom:14px;
+}
+.kv{display:grid; grid-template-columns:auto 1fr; gap:7px 14px; font-size:13.5px; margin-bottom:18px}
+.kv dt{color:var(--ink-faint)} .kv dd{margin:0}
+
+/* loc cards */
+.loc-card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); padding:14px; display:flex; align-items:center; gap:12px; margin-bottom:10px}
+.loc-card .swatch{width:16px;height:16px;border-radius:5px; flex-shrink:0}
+.loc-card .info{flex:1; min-width:0}
+.loc-card .info .cod{font-family:"IBM Plex Mono"; font-weight:600; font-size:14px}
+.loc-card .info .qty{font-size:12px; color:var(--ink-soft)}
+.loc-card .acts{display:flex; flex-direction:column; gap:6px; align-items:flex-end}
+.toggle{
+  display:inline-flex; align-items:center; gap:6px; font-size:11.5px; font-weight:600; padding:4px 9px; border-radius:99px;
+  border:1px solid var(--line-strong); background:var(--surface-2); color:var(--ink-soft); cursor:pointer; font-family:inherit;
+}
+.toggle.active{background:var(--ok-bg); color:var(--ok); border-color:transparent}
+.linklike{background:none;border:none;color:var(--accent);font-size:12px;font-weight:600;cursor:pointer;padding:0;font-family:inherit}
+.linklike:disabled{color:var(--ink-faint); cursor:not-allowed}
+.pill{display:inline-flex; align-items:center; gap:5px; font-size:10.5px; font-weight:700; padding:3px 8px; border-radius:99px; color:#fff}
+
+/* hist card */
+.hist-card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); padding:13px 14px; margin-bottom:9px}
+.hist-card .top{display:flex; align-items:center; gap:8px; margin-bottom:6px}
+.hist-card .code{font-family:"IBM Plex Mono"; font-weight:600; font-size:13.5px}
+.hist-card dl{display:grid; grid-template-columns:auto 1fr; gap:3px 10px; font-size:11.5px; color:var(--ink-soft)}
+.hist-card dt{color:var(--ink-faint)}
+
+/* users mobile */
+.user-card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); box-shadow:var(--shadow); padding:14px; margin-bottom:10px}
+.user-card .top{display:flex; align-items:center; gap:10px; margin-bottom:10px}
+.user-card .avatar{width:30px;height:30px;border-radius:50%;background:var(--accent);color:var(--accent-ink);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:12px; flex-shrink:0}
+.user-card .nome{font-weight:600; font-size:14px; flex:1}
+.role-pill{font-size:10.5px; font-weight:700; padding:3px 9px; border-radius:99px; border:none; font-family:inherit; cursor:pointer}
+.role-gestor{background:var(--accent-soft); color:var(--accent)}
+.role-func{background:var(--surface-2); color:var(--ink-soft)}
+.mod-row{display:flex; gap:16px}
+.mod-check{display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--ink-soft)}
+.check{width:17px;height:17px; accent-color:var(--accent)}
+
+/* bottom tab bar */
+.tabbar{
+  position:fixed; left:0; right:0; bottom:0; z-index:30;
+  display:flex; background:var(--surface); border-top:1px solid var(--line);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+.tabbar button{
+  all:unset; flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;
+  padding:9px 4px 8px; cursor:pointer; color:var(--ink-faint); font-size:10.5px; font-weight:600; text-align:center;
+}
+.tabbar button svg{width:20px;height:20px; stroke:currentColor}
+.tabbar button.on{color:var(--accent)}
+
+/* "mais" sheet */
+.sheet-overlay{position:fixed; inset:0; background:rgba(20,18,14,.45); z-index:70; display:flex; align-items:flex-end}
+.sheet{
+  background:var(--surface); width:100%; border-radius:18px 18px 0 0; box-shadow:var(--shadow);
+  padding:10px 16px calc(22px + env(safe-area-inset-bottom,0px)); max-height:80vh; overflow:auto;
+}
+.sheet .grab{width:36px;height:4px;border-radius:99px;background:var(--line-strong); margin:6px auto 14px}
+.sheet-item{
+  all:unset; display:flex; align-items:center; gap:12px; width:100%; padding:13px 6px; font-size:14.5px; cursor:pointer;
+  border-bottom:1px solid var(--line); box-sizing:border-box;
+}
+.sheet-item:last-child{border-bottom:none}
+.sheet-item svg{width:19px;height:19px;stroke:var(--accent); flex-shrink:0}
+.sheet-item.danger svg{stroke:var(--danger)}
+.sheet-item.danger{color:var(--danger)}
+
+/* modal (aguardando) reused as full sheet on mobile */
+.modal-overlay{position:fixed; inset:0; background:rgba(20,18,14,.45); z-index:80; display:flex; align-items:flex-end}
+.modal-box{background:var(--surface); width:100%; border-radius:18px 18px 0 0; box-shadow:var(--shadow); max-height:85vh; overflow:auto; padding:18px 16px calc(20px + env(safe-area-inset-bottom,0px))}
+.modal-head{display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px}
+.modal-head h3{font-size:15.5px}
+.loading{color:var(--ink-faint); font-size:13px; padding:20px 2px; text-align:center}
+</style>
+</head>
+<body>
+
+<div class="app" id="app">
+
+  <!-- LOGIN -->
+  <section id="view-login">
+    <div class="login-card">
+      <div class="mark">
+        <div class="box"><svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg></div>
+        <div style="font-size:11px;letter-spacing:.06em;color:var(--ink-faint);text-transform:uppercase;font-weight:600">Ponto de Retirada</div>
+      </div>
+      <h1>Entrar</h1>
+      <p class="sub">Versão mobile. Mesmo login da versão desktop — os dados são os mesmos.</p>
+      <form class="login-form" id="form-login">
+        <div class="field">
+          <label for="li-usuario">Usuário</label>
+          <input type="text" id="li-usuario" autocomplete="username" autocapitalize="off">
+        </div>
+        <div class="field">
+          <label for="li-senha">Senha</label>
+          <input type="password" id="li-senha" autocomplete="current-password">
+        </div>
+        <div class="login-error" id="login-error"></div>
+        <button type="submit" class="btn btn-primary" id="li-btn">Entrar</button>
+      </form>
+      <p class="foot">Não tem login? Peça pro gestor liberar seu acesso.<br><a href="index.html" style="color:var(--accent)">Ir para a versão desktop</a></p>
+    </div>
+  </section>
+
+  <!-- PORTAL -->
+  <section id="view-portal" hidden>
+    <div class="topbar">
+      <div class="brand"><span class="dot"></span> Ponto de Retirada</div>
+      <div class="spacer"></div>
+      <div class="avatar" id="portal-avatar"></div>
+    </div>
+    <div class="wrap">
+      <div class="portal-head">
+        <h1>Módulos</h1>
+        <p id="portal-sub"></p>
+      </div>
+      <div class="cards" id="portal-cards"></div>
+    </div>
+  </section>
+
+  <!-- APP -->
+  <section id="view-app" hidden>
+    <div class="topbar">
+      <button class="linklike" id="btn-back-portal" style="font-size:13px">&larr; Módulos</button>
+      <div class="spacer"></div>
+      <div class="avatar" id="app-avatar"></div>
+    </div>
+
+    <div class="mainwrap">
+      <!-- PAINEL -->
+      <div id="pv-painel">
+        <div class="mainhead"><h2>Painel</h2><p>Estoque de pacotes avulsos agora.</p></div>
+        <div class="kpis" id="kpis"></div>
+        <div class="section-title"><h3>Por localização</h3></div>
+        <div class="wall" id="wall"></div>
+        <div class="section-title"><h3>Atividade recente</h3></div>
+        <div class="listcard" id="activity"></div>
+      </div>
+
+      <!-- CADASTRAR -->
+      <div id="pv-cadastrar" hidden>
+        <div class="mainhead"><h2>Cadastrar pacote</h2><p>Código + prateleira onde ele foi colocado.</p></div>
+        <div class="card">
+          <form class="form" id="form-cadastro">
+            <div class="field">
+              <label for="in-codigo">Código de rastreio</label>
+              <input type="text" id="in-codigo" class="mono-input" inputmode="numeric" maxlength="11" placeholder="00000000000" autocomplete="off">
+              <div class="help">11 dígitos, igual à etiqueta do pacote.</div>
+            </div>
+            <div class="field">
+              <label>Localização</label>
+              <div class="loc-tiles" id="loc-tiles"></div>
+            </div>
+            <div class="field" id="campo-nova-local" hidden>
+              <label for="in-novo-local-codigo">Código da nova localização</label>
+              <input type="text" id="in-novo-local-codigo" placeholder="ex.: 9I">
+            </div>
+            <button type="submit" class="btn btn-primary">Cadastrar pacote</button>
+          </form>
+        </div>
+        <div class="card" style="margin-top:14px">
+          <div style="font-weight:600; font-size:13.5px; margin-bottom:6px">Cadastro em massa</div>
+          <p style="font-size:12px;color:var(--ink-soft);margin:0 0 10px">Planilha com 2 colunas: código (11 dígitos) e localização.</p>
+          <input type="file" id="in-planilha" accept=".xlsx,.xls,.csv" style="font-size:13px; width:100%">
+          <div id="planilha-resultado" style="margin-top:10px;font-size:12px;color:var(--ink-soft)"></div>
+        </div>
+      </div>
+
+      <!-- BUSCAR -->
+      <div id="pv-entregar" hidden>
+        <div class="mainhead"><h2>Buscar &amp; entregar</h2><p>Digite o código do pacote.</p></div>
+        <div class="search-box">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input type="search" id="in-busca" class="mono-input" inputmode="numeric" placeholder="Digite o código&hellip;" autocomplete="off">
+        </div>
+        <div class="results" id="busca-results"></div>
+        <div id="pkg-detail" class="pkg-detail" hidden></div>
+      </div>
+
+      <!-- LOCAIS -->
+      <div id="pv-locais" hidden>
+        <div class="mainhead"><h2>Localizações</h2><p>Prateleiras onde os pacotes ficam.</p></div>
+        <div id="locais-list"></div>
+        <div class="card" style="margin-top:6px">
+          <div style="font-weight:600; font-size:13.5px; margin-bottom:12px">Nova localização</div>
+          <form class="form" id="form-local" style="gap:12px">
+            <div class="field">
+              <label for="loc-codigo">Código</label>
+              <input type="text" id="loc-codigo" placeholder="ex.: 9I">
+            </div>
+            <button type="submit" class="btn btn-primary">Adicionar</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- HISTÓRICO -->
+      <div id="pv-historico" hidden>
+        <div class="mainhead"><h2>Histórico</h2><p>Pacotes já entregues.</p></div>
+        <div class="field" style="margin-bottom:14px">
+          <input type="search" id="in-busca-hist" placeholder="Filtrar por código&hellip;" class="mono-input">
+        </div>
+        <div id="hist-list"></div>
+      </div>
+
+      <!-- USUÁRIOS -->
+      <div id="pv-usuarios" hidden>
+        <div class="mainhead"><h2>Usuários</h2><p>Quem acessa e quais módulos.</p></div>
+        <div id="users-list"></div>
+      </div>
+    </div>
+
+    <nav class="tabbar" id="tabbar">
+      <button data-view="painel" class="on">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
+        Painel
+      </button>
+      <button data-view="cadastrar">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+        Cadastrar
+      </button>
+      <button data-view="entregar">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        Buscar
+      </button>
+      <button data-view="locais">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V8l9-5 9 5v13"/><path d="M9 21v-7h6v7"/></svg>
+        Locais
+      </button>
+      <button id="btn-mais">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="5" cy="12" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="19" cy="12" r="1.5"/></svg>
+        Mais
+      </button>
+    </nav>
+  </section>
+
+  <div class="sheet-overlay" id="sheet-overlay" hidden>
+    <div class="sheet">
+      <div class="grab"></div>
+      <button class="sheet-item" id="sheet-historico">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 7v5l3 3"/></svg>
+        Histórico de entregas
+      </button>
+      <button class="sheet-item" id="sheet-usuarios" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/></svg>
+        Gerenciar usuários
+      </button>
+      <button class="sheet-item" id="sheet-portal">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+        Voltar aos módulos
+      </button>
+      <button class="sheet-item danger" id="sheet-sair">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+        Sair
+      </button>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="modal-overlay" hidden>
+    <div class="modal-box">
+      <div class="modal-head">
+        <h3 id="modal-title"></h3>
+        <button class="linklike" id="modal-close" type="button">Fechar ✕</button>
+      </div>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="config.js"></script>
+<script src="data.js"></script>
+<script>
+(function(){
+"use strict";
+
+var state = { sessao:null, appView:"painel", locais:[] };
+
+function $(sel,ctx){return (ctx||document).querySelector(sel)}
+function $all(sel,ctx){return Array.prototype.slice.call((ctx||document).querySelectorAll(sel))}
+function el(tag, attrs, kids){
+  var n = document.createElement(tag);
+  if(attrs) Object.keys(attrs).forEach(function(k){
+    if(k==="html") n.innerHTML = attrs[k];
+    else if(k==="text") n.textContent = attrs[k];
+    else n.setAttribute(k, attrs[k]);
+  });
+  (kids||[]).forEach(function(c){ if(c) n.appendChild(c) });
+  return n;
+}
+function locColor(codigo){ var l = state.locais.filter(function(l){return l.codigo===codigo})[0]; return l ? l.cor : "#8a8676" }
+function initials(nome){ return nome.split(" ").map(function(p){return p[0]}).slice(0,2).join("").toUpperCase() }
+function fmtData(iso){ var d = new Date(iso); return d.toLocaleDateString("pt-BR")+" "+d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}) }
+function fmtDataCurta(iso){ var d = new Date(iso); return d.toLocaleDateString("pt-BR",{day:"2-digit",month:"2-digit"})+" "+d.toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}) }
+function toast(msg, isErr){
+  var t = $("#toast");
+  t.className = "toast" + (isErr?" err":"");
+  t.innerHTML = '<span class="dot"></span>' + msg;
+  t.classList.add("show");
+  clearTimeout(toast._h);
+  toast._h = setTimeout(function(){ t.classList.remove("show") }, 3200);
+}
+function erroMsg(e){ return (e && e.message) ? e.message : "Algo deu errado. Tenta de novo."; }
+function show(id){ $all(".app > section").forEach(function(s){ s.hidden = (s.id !== id) }) }
+
+/* ---------------- modal (aguardando / localização) ---------------- */
+function abrirModal(titulo){
+  $("#modal-title").textContent = titulo;
+  var body = $("#modal-body");
+  body.innerHTML = "";
+  $("#modal-overlay").hidden = false;
+  return body;
+}
+function fecharModal(){ $("#modal-overlay").hidden = true; }
+$("#modal-close").addEventListener("click", fecharModal);
+$("#modal-overlay").addEventListener("click", function(e){ if(e.target.id==="modal-overlay") fecharModal() });
+
+function montarTransferControl(p, onDone){
+  var wrap = el("div",{style:"display:flex;gap:8px;margin-top:8px"});
+  var sel = el("select",{style:"flex:1"});
+  state.locais.filter(function(l){return l.ativa && l.codigo!==p.local}).forEach(function(l){
+    sel.appendChild(el("option",{value:l.codigo, text:l.codigo}));
+  });
+  if(!sel.children.length){ sel.appendChild(el("option",{value:"", text:"— sem outra ativa —"})); sel.disabled = true; }
+  var btn = el("button",{type:"button", class:"btn btn-ghost", style:"width:auto", text:"Mover"});
+  if(sel.disabled) btn.disabled = true;
+  btn.addEventListener("click", async function(){
+    var novo = sel.value; if(!novo) return;
+    btn.disabled = true;
+    try{
+      await PA.transferirPacote(p.id, novo);
+      toast("Pacote " + p.codigo + " movido para " + novo + ".");
+      if(onDone) await onDone();
+    }catch(e){ toast(erroMsg(e), true); btn.disabled = false; }
+  });
+  wrap.appendChild(sel); wrap.appendChild(btn);
+  return wrap;
+}
+
+async function abrirModalLocalizacao(codigoLocal){
+  var body = abrirModal("Prateleira " + codigoLocal);
+  body.innerHTML = '<div class="loading">Carregando…</div>';
+  async function render(){
+    var estoque = await PA.listarEstoque();
+    body.innerHTML = "";
+    var lista = estoque.filter(function(p){return p.local===codigoLocal}).sort(function(a,b){return new Date(b.cadastrado_em)-new Date(a.cadastrado_em)});
+    body.appendChild(el("div",{style:"font-size:12.5px;color:var(--ink-faint);margin-bottom:10px", text: lista.length + " pacote(s) nesta prateleira agora."}));
+    if(!lista.length){ body.appendChild(el("div",{class:"empty-msg", text:"Nenhum pacote aqui no momento."})); return; }
+    lista.forEach(function(p){
+      var card = el("div",{class:"hist-card"});
+      card.appendChild(el("div",{class:"code", text:p.codigo}));
+      card.appendChild(el("div",{style:"font-size:11.5px;color:var(--ink-faint);margin-top:3px", text:p.cadastrado_por+" · "+fmtData(p.cadastrado_em)}));
+      card.appendChild(montarTransferControl(p, function(){ return render().then(function(){ renderLocaisList(); renderPainel(); }) }));
+      body.appendChild(card);
+    });
+  }
+  await render();
+}
+
+async function abrirModalAguardando(){
+  var body = abrirModal("Aguardando retirada");
+  var head = el("div",{style:"display:flex;align-items:center;gap:10px;margin-bottom:12px"});
+  head.appendChild(el("label",{text:"Dias parado:", style:"font-size:12.5px;color:var(--ink-soft)"}));
+  var inp = el("input",{type:"text", inputmode:"numeric", value:"3", style:"width:64px"});
+  head.appendChild(inp);
+  body.appendChild(head);
+  var countEl = el("div",{style:"font-size:12.5px;color:var(--ink-faint);margin-bottom:10px"});
+  body.appendChild(countEl);
+  var listEl = el("div");
+  body.appendChild(listEl);
+  var estoque = await PA.listarEstoque();
+  function render(){
+    var n = Math.max(1, parseInt(inp.value,10)||1);
+    var agora = Date.now();
+    var lista = estoque.map(function(p){
+      return { p:p, dias: Math.floor((agora - new Date(p.cadastrado_em).getTime())/86400000) };
+    }).filter(function(x){ return x.dias === n }).sort(function(a,b){ return b.dias-a.dias });
+    countEl.textContent = lista.length + " pacote(s) com exatamente " + n + " dia" + (n===1?"":"s") + " parado(s).";
+    listEl.innerHTML = "";
+    if(!lista.length){ listEl.appendChild(el("div",{class:"empty-msg", text:"Nenhum pacote com esse número exato de dias."})); }
+    lista.forEach(function(x){
+      var card = el("div",{class:"hist-card"});
+      card.appendChild(el("div",{class:"code", text:x.p.codigo}));
+      card.appendChild(el("div",{style:"margin-top:4px", html:'<span class="pill" style="background:'+locColor(x.p.local)+'">'+x.p.local+'</span> <span style="font-size:11.5px;color:var(--ink-faint)">'+x.p.cadastrado_por+' · '+x.dias+' dia'+(x.dias===1?'':'s')+'</span>'}));
+      listEl.appendChild(card);
+    });
+  }
+  inp.addEventListener("input", render);
+  render();
+}
+
+/* ---------------- login / portal ---------------- */
+$("#form-login").addEventListener("submit", async function(e){
+  e.preventDefault();
+  var errEl = $("#login-error"); errEl.classList.remove("show");
+  var btn = $("#li-btn"); btn.disabled = true; btn.textContent = "Entrando…";
+  try{
+    var sessao = await PA.login($("#li-usuario").value, $("#li-senha").value);
+    state.sessao = sessao;
+    $("#li-senha").value = "";
+    await entrarNoPortal();
+  }catch(err){
+    errEl.textContent = erroMsg(err);
+    errEl.classList.add("show");
+  }
+  btn.disabled = false; btn.textContent = "Entrar";
+});
+
+async function entrarNoPortal(){
+  await renderPortal();
+  show("view-portal");
+}
+
+async function renderPortal(){
+  var u = state.sessao.perfil;
+  $("#portal-avatar").textContent = initials(u.nome);
+  $("#app-avatar").textContent = initials(u.nome);
+  $("#portal-sub").textContent = "Olá, " + u.nome.split(" ")[0] + ". Escolha um módulo.";
+  var wrap = $("#portal-cards"); wrap.innerHTML = "";
+
+  var cPacotes = el("button",{class:"pcard", type:"button"},[
+    el("div",{class:"icon", html:'<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8l-9-5-9 5 9 5 9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/></svg>'}),
+    el("div",{class:"txt"},[
+      el("h3",{text:"Pacotes Avulsos"}),
+      el("p",{text:"Cadastro, busca e entrega de pacotes."}),
+      el("span",{class:"tag tag-live", text:"Versão mobile"})
+    ])
+  ]);
+  if(!u.modulo_pacotes){ cPacotes.disabled = true; }
+  else cPacotes.addEventListener("click", async function(){ state.appView="painel"; await renderApp(); show("view-app") });
+  wrap.appendChild(cPacotes);
+
+  var cSacas = el("button",{class:"pcard", type:"button"},[
+    el("div",{class:"icon", html:'<svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="7" width="16" height="14" rx="2"/><path d="M9 7V5a3 3 0 0 1 6 0v2"/></svg>'}),
+    el("div",{class:"txt"},[
+      el("h3",{text:"Gestão de Sacas"}),
+      el("p",{text:"Fila, liberar e liberadas."}),
+      el("span",{class:"tag tag-linked", text:"Mesmo login"})
+    ])
+  ]);
+  if(!u.modulo_sacas){ cSacas.disabled = true; }
+  else cSacas.addEventListener("click", function(){
+    toast("O Gestão de Sacas ainda é outro site — essa liberação só decide quem pode acessá-lo.");
+  });
+  wrap.appendChild(cSacas);
+
+  $("#sheet-usuarios").hidden = u.perfil !== "gestor";
+}
+
+/* ---------------- app ---------------- */
+var NAV_LABELS = {painel:"Painel", cadastrar:"Cadastrar", entregar:"Buscar", locais:"Localizações", historico:"Histórico", usuarios:"Usuários"};
+
+async function renderApp(){
+  state.locais = await PA.listarLocalizacoes();
+  $all("#tabbar > button[data-view]").forEach(function(b){ b.classList.toggle("on", b.dataset.view===state.appView) });
+  ["painel","cadastrar","entregar","locais","historico","usuarios"].forEach(function(v){
+    var node = $("#pv-"+v); if(node) node.hidden = (v !== state.appView);
+  });
+  if(state.appView==="painel") await renderPainel();
+  if(state.appView==="cadastrar") await renderCadastrar();
+  if(state.appView==="entregar") renderEntregar();
+  if(state.appView==="locais") await renderLocaisList();
+  if(state.appView==="historico") await renderHistoricoList();
+  if(state.appView==="usuarios") await renderUsersList();
+}
+
+async function renderPainel(){
+  var est = await PA.listarEstoque();
+  var historico = await PA.listarHistorico();
+  var inicioDia = new Date(); inicioDia.setHours(0,0,0,0);
+  var entreguesHoje = historico.filter(function(p){return new Date(p.entregue_em) >= inicioDia}).length;
+  var limiteAtencao = Date.now() - 3*86400000;
+  var parados = est.filter(function(p){return new Date(p.cadastrado_em).getTime() < limiteAtencao}).length;
+
+  var kpis = $("#kpis"); kpis.innerHTML = "";
+  function kpi(lbl, val, sufixo, warn, onClick){
+    var d = el("div",{class:"kpi"+(warn?" warn":"")+(onClick?" clickable":"")},[
+      el("div",{class:"lbl", text:lbl}),
+      el("div",{class:"val", html: val + (sufixo?' <small>'+sufixo+'</small>':'') })
+    ]);
+    if(onClick) d.addEventListener("click", onClick);
+    kpis.appendChild(d);
+  }
+  kpi("Em estoque", est.length, "pacotes");
+  kpi("Entregues hoje", entreguesHoje);
+  kpi("Locais ativos", state.locais.filter(function(l){return l.ativa}).length);
+  kpi("Aguard. +3 dias", parados, "", parados>0, function(){ abrirModalAguardando() });
+
+  var wall = $("#wall"); wall.innerHTML = "";
+  state.locais.filter(function(l){return l.ativa}).forEach(function(loc){
+    var n = est.filter(function(p){return p.local===loc.codigo}).length;
+    var b = el("button",{class:"shelf", type:"button", style:"background:"+loc.cor},[
+      el("div",{class:"code", text:loc.codigo}),
+      el("div",{class:"qty", html:n+' <small>pct</small>'})
+    ]);
+    b.addEventListener("click", function(){ abrirModalLocalizacao(loc.codigo) });
+    wall.appendChild(b);
+  });
+
+  var act = $("#activity"); act.innerHTML = "";
+  var recentes = est.slice().concat(historico.slice()).sort(function(a,b){
+    var ta = a.status==="entregue" ? new Date(a.entregue_em) : new Date(a.cadastrado_em);
+    var tb = b.status==="entregue" ? new Date(b.entregue_em) : new Date(b.cadastrado_em);
+    return tb-ta;
+  }).slice(0,6);
+  if(!recentes.length){ act.appendChild(el("div",{class:"empty-msg", text:"Nada por aqui ainda."})); }
+  recentes.forEach(function(p){
+    var saida = p.status==="entregue";
+    act.appendChild(el("div",{class:"lrow"},[
+      el("span",{class:"dot "+(saida?"out":"in")}),
+      el("span",{class:"code", text:p.codigo}),
+      el("span",{class:"who", text:(saida? p.entregue_por : p.cadastrado_por) + "\n" + fmtDataCurta(saida?p.entregue_em:p.cadastrado_em)})
+    ]));
+  });
+}
+
+function refreshLocTiles(){
+  var wrap = $("#loc-tiles"); wrap.innerHTML = "";
+  var ativas = state.locais.filter(function(l){return l.ativa});
+  if(!state.novoPacoteLocal || !ativas.some(function(l){return l.codigo===state.novoPacoteLocal})){
+    state.novoPacoteLocal = ativas.length ? ativas[0].codigo : null;
+  }
+  ativas.forEach(function(l){
+    var on = state.novoPacoteLocal===l.codigo;
+    var t = el("button",{type:"button", class:"loc-tile"+(on?" on":""), style:"--tilecolor:"+l.cor},[el("span",{text:l.codigo})]);
+    t.addEventListener("click", function(){ state.novoPacoteLocal = l.codigo; $("#campo-nova-local").hidden = true; refreshLocTiles(); });
+    wrap.appendChild(t);
+  });
+  var addT = el("button",{type:"button", class:"loc-tile add"},[el("span",{text:"+ Nova"})]);
+  addT.addEventListener("click", function(){
+    var f = $("#campo-nova-local"); f.hidden = !f.hidden;
+    if(!f.hidden) $("#in-novo-local-codigo").focus();
+  });
+  wrap.appendChild(addT);
+}
+
+async function renderCadastrar(){
+  refreshLocTiles();
+  $("#campo-nova-local").hidden = true;
+  var form = $("#form-cadastro");
+  if(!form._wired){
+    form._wired = true;
+    form.addEventListener("submit", async function(e){
+      e.preventDefault();
+      var codigo = $("#in-codigo").value.replace(/\D/g,"");
+      if(codigo.length !== 11){ toast("O código precisa ter 11 dígitos.", true); return; }
+      var novoCod = $("#in-novo-local-codigo").value.trim();
+      var local;
+      var btn = form.querySelector("button[type=submit]"); btn.disabled = true;
+      try{
+        if(!$("#campo-nova-local").hidden && novoCod){
+          await PA.criarLocalizacao(novoCod, PA.SHELF_COLORS[state.locais.length % PA.SHELF_COLORS.length]);
+          local = novoCod;
+        } else if(state.novoPacoteLocal){
+          local = state.novoPacoteLocal;
+        } else {
+          toast("Escolha uma localização.", true); btn.disabled = false; return;
+        }
+        await PA.cadastrarPacote(codigo, local, state.sessao.perfil.nome);
+        toast("Pacote " + codigo + " cadastrado em " + local + ".");
+        form.reset();
+        $("#campo-nova-local").hidden = true;
+        state.novoPacoteLocal = local;
+        state.locais = await PA.listarLocalizacoes();
+        refreshLocTiles();
+      }catch(err){ toast(erroMsg(err), true); }
+      btn.disabled = false;
+    });
+
+    $("#in-planilha").addEventListener("change", function(e){
+      var f = e.target.files[0]; if(!f) return;
+      var resEl = $("#planilha-resultado");
+      resEl.textContent = "Lendo " + f.name + "…";
+      var reader = new FileReader();
+      reader.onload = async function(ev){
+        try{
+          var wb = XLSX.read(new Uint8Array(ev.target.result), {type:"array"});
+          var ws = wb.Sheets[wb.SheetNames[0]];
+          var rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:""});
+          var linhas = [], ignoradas = 0;
+          rows.forEach(function(row){
+            var cod = String(row[0]==null?"":row[0]).replace(/\D/g,"");
+            var loc = String(row[1]==null?"":row[1]).trim();
+            if(cod.length!==11 || !loc){ if(row[0]||row[1]) ignoradas++; return; }
+            linhas.push({codigo:cod, local:loc});
+          });
+          var r = await PA.cadastrarEmMassaComLocais(linhas, state.sessao.perfil.nome);
+          resEl.textContent = r.inseridos + " cadastrado(s)"
+            + (r.novasLocs ? ", " + r.novasLocs + " local(is) novo(s)" : "")
+            + ((r.duplicados||ignoradas) ? ", " + (r.duplicados+ignoradas) + " ignorada(s)" : "") + ".";
+          toast(r.inseridos + " pacote(s) da planilha cadastrado(s).");
+          state.locais = await PA.listarLocalizacoes();
+          refreshLocTiles();
+        }catch(err){
+          resEl.textContent = "Não consegui ler essa planilha.";
+        }
+        $("#in-planilha").value = "";
+      };
+      reader.readAsArrayBuffer(f);
+    });
+  }
+}
+
+function renderEntregar(){
+  $("#pkg-detail").hidden = true; $("#pkg-detail").innerHTML = "";
+  $("#busca-results").innerHTML = "";
+  var input = $("#in-busca");
+  if(!input._wired){
+    input._wired = true;
+    input.addEventListener("input", function(){ buscaPacotes(input.value.trim()) });
+  }
+  input.value = "";
+}
+
+var buscaSeq = 0;
+async function buscaPacotes(q){
+  var minhaSeq = ++buscaSeq;
+  var box = $("#busca-results");
+  $("#pkg-detail").hidden = true;
+  if(!q){ box.innerHTML = ""; return; }
+  var achados = await PA.buscarPorCodigo(q);
+  if(minhaSeq !== buscaSeq) return;
+  box.innerHTML = "";
+  if(!achados.length){ box.appendChild(el("div",{class:"empty-msg", text:"Nenhum pacote em estoque com esse código."})); return; }
+  achados.forEach(function(p){
+    var row = el("div",{class:"result-row"},[
+      el("span",{class:"code", text:p.codigo}),
+      el("span",{class:"loc-chip", style:"background:"+locColor(p.local), text:p.local})
+    ]);
+    row.addEventListener("click", function(){ mostrarPacote(p) });
+    box.appendChild(row);
+  });
+}
+
+function mostrarPacote(p){
+  $("#busca-results").innerHTML = "";
+  $("#in-busca").value = p.codigo;
+  var box = $("#pkg-detail"); box.hidden = false; box.innerHTML = "";
+  box.appendChild(el("div",{class:"loc-big", style:"background:"+locColor(p.local), text:p.local}));
+  var kv = el("dl",{class:"kv"});
+  function row(k,v){ kv.appendChild(el("dt",{text:k})); kv.appendChild(el("dd",{text:v||"—"})) }
+  row("Código", p.codigo);
+  row("Cadastrado por", p.cadastrado_por);
+  row("Cadastrado em", fmtData(p.cadastrado_em));
+  box.appendChild(kv);
+
+  var btn = el("button",{class:"btn btn-ok", type:"button", text:"Confirmar entrega"});
+  btn.addEventListener("click", async function(){
+    btn.disabled = true;
+    try{
+      await PA.entregarPacote(p.id, state.sessao.perfil.nome);
+      toast("Pacote com ID " + p.codigo + " foi entregue!");
+      box.hidden = true;
+      $("#in-busca").value = "";
+    }catch(err){ toast(erroMsg(err), true); btn.disabled = false; }
+  });
+  box.appendChild(btn);
+}
+
+async function renderLocaisList(){
+  var wrap = $("#locais-list"); wrap.innerHTML = '<div class="loading">Carregando…</div>';
+  var est = await PA.listarEstoque();
+  wrap.innerHTML = "";
+  state.locais.forEach(function(loc){
+    var n = est.filter(function(p){return p.local===loc.codigo}).length;
+    var card = el("div",{class:"loc-card"});
+    card.appendChild(el("div",{class:"swatch", style:"background:"+loc.cor}));
+    var info = el("div",{class:"info"});
+    info.appendChild(el("div",{class:"cod", text:loc.codigo}));
+    if(n>0){
+      var verBtn = el("button",{type:"button", class:"linklike", text:n+" pacote(s) — ver"});
+      verBtn.addEventListener("click", function(){ abrirModalLocalizacao(loc.codigo) });
+      var qtyWrap = el("div",{class:"qty"}); qtyWrap.appendChild(verBtn);
+      info.appendChild(qtyWrap);
+    } else {
+      info.appendChild(el("div",{class:"qty", text:"0 pacotes"}));
+    }
+    card.appendChild(info);
+    var acts = el("div",{class:"acts"});
+    var tgl = el("button",{type:"button", class:"toggle"+(loc.ativa?" active":""), text: loc.ativa?"Ativa":"Inativa"});
+    tgl.addEventListener("click", async function(){
+      tgl.disabled = true;
+      try{ await PA.alternarLocalizacao(loc.codigo, !loc.ativa); state.locais = await PA.listarLocalizacoes(); await renderLocaisList(); }
+      catch(err){ toast(erroMsg(err), true); tgl.disabled = false; }
+    });
+    acts.appendChild(tgl);
+    var delAttrs = {type:"button", class:"linklike", text:"Excluir"};
+    if(n>0) delAttrs.disabled = "";
+    var delBtn = el("button", delAttrs);
+    if(!n){
+      delBtn.addEventListener("click", async function(){
+        try{ await PA.excluirLocalizacao(loc.codigo); toast("Localização " + loc.codigo + " excluída."); state.locais = await PA.listarLocalizacoes(); await renderLocaisList(); }
+        catch(err){ toast(erroMsg(err), true); }
+      });
+    }
+    acts.appendChild(delBtn);
+    card.appendChild(acts);
+    wrap.appendChild(card);
+  });
+
+  var form = $("#form-local");
+  if(!form._wired){
+    form._wired = true;
+    form.addEventListener("submit", async function(e){
+      e.preventDefault();
+      var codigo = $("#loc-codigo").value.trim();
+      if(!codigo){ toast("Informe um código.", true); return; }
+      try{
+        await PA.criarLocalizacao(codigo, PA.SHELF_COLORS[state.locais.length % PA.SHELF_COLORS.length]);
+        toast("Localização " + codigo + " adicionada.");
+        form.reset();
+        state.locais = await PA.listarLocalizacoes();
+        await renderLocaisList();
+      }catch(err){ toast(erroMsg(err), true); }
+    });
+  }
+}
+
+async function renderHistoricoList(filtro){
+  var wrap = $("#hist-list"); wrap.innerHTML = '<div class="loading">Carregando…</div>';
+  var entregues = await PA.listarHistorico(filtro);
+  wrap.innerHTML = "";
+  if(!entregues.length){ wrap.appendChild(el("div",{class:"empty-msg", text:"Nada por aqui ainda."})); }
+  entregues.forEach(function(p){
+    var card = el("div",{class:"hist-card"});
+    card.appendChild(el("div",{class:"top"},[
+      el("span",{class:"code", text:p.codigo}),
+      el("span",{html:'<span class="pill" style="background:'+locColor(p.local)+'">'+p.local+'</span>'})
+    ]));
+    var dl = el("dl");
+    function r(k,v){ dl.appendChild(el("dt",{text:k})); dl.appendChild(el("dd",{text:v, style:"margin:0"})); }
+    r("Cadastrado por", p.cadastrado_por); r("Cadastrado em", fmtData(p.cadastrado_em));
+    r("Entregue por", p.entregue_por); r("Entregue em", fmtData(p.entregue_em));
+    card.appendChild(dl);
+    wrap.appendChild(card);
+  });
+  var inp = $("#in-busca-hist");
+  if(!inp._wired){
+    inp._wired = true;
+    inp.addEventListener("input", function(){ renderHistoricoList(inp.value.trim()) });
+  }
+}
+
+async function renderUsersList(){
+  var wrap = $("#users-list"); wrap.innerHTML = '<div class="loading">Carregando…</div>';
+  var usuarios = await PA.listarUsuarios();
+  wrap.innerHTML = "";
+  usuarios.forEach(function(u){
+    var card = el("div",{class:"user-card"});
+    var top = el("div",{class:"top"});
+    top.appendChild(el("div",{class:"avatar", text:initials(u.nome)}));
+    top.appendChild(el("div",{class:"nome", text:u.nome}));
+    var perfilBtn = el("button",{type:"button", class:"role-pill "+(u.perfil==="gestor"?"role-gestor":"role-func"), text:(u.perfil==="gestor"?"Gestor":"Funcionário")});
+    perfilBtn.addEventListener("click", async function(){
+      var novo = u.perfil==="gestor" ? "funcionario" : "gestor";
+      perfilBtn.disabled = true;
+      try{ await PA.atualizarUsuario(u.id, {perfil:novo}); u.perfil = novo; await renderUsersList(); }
+      catch(err){ toast(erroMsg(err), true); perfilBtn.disabled = false; }
+    });
+    top.appendChild(perfilBtn);
+    card.appendChild(top);
+    var modRow = el("div",{class:"mod-row"});
+    [["modulo_pacotes","Pacotes Avulsos"],["modulo_sacas","Gestão de Sacas"]].forEach(function(pair){
+      var id = "mod-"+u.id+"-"+pair[0];
+      var lab = el("label",{class:"mod-check", for:id});
+      var cb = el("input",{type:"checkbox", class:"check", id:id});
+      cb.checked = !!u[pair[0]];
+      cb.addEventListener("change", async function(){
+        cb.disabled = true;
+        var campos = {}; campos[pair[0]] = cb.checked;
+        try{ await PA.atualizarUsuario(u.id, campos); toast("Acesso a "+pair[1]+" "+(cb.checked?"liberado":"removido")+"."); }
+        catch(err){ toast(erroMsg(err), true); cb.checked = !cb.checked; }
+        cb.disabled = false;
+      });
+      lab.appendChild(cb);
+      lab.appendChild(document.createTextNode(pair[1]));
+      modRow.appendChild(lab);
+    });
+    card.appendChild(modRow);
+    wrap.appendChild(card);
+  });
+}
+
+/* ---------------- nav ---------------- */
+$("#btn-back-portal").addEventListener("click", async function(){ await renderPortal(); show("view-portal") });
+$all("#tabbar > button[data-view]").forEach(function(b){
+  b.addEventListener("click", async function(){ state.appView = b.dataset.view; await renderApp() });
+});
+
+/* ---------------- sheet "mais" ---------------- */
+function abrirSheet(){ $("#sheet-overlay").hidden = false; }
+function fecharSheet(){ $("#sheet-overlay").hidden = true; }
+$("#btn-mais").addEventListener("click", abrirSheet);
+$("#sheet-overlay").addEventListener("click", function(e){ if(e.target.id==="sheet-overlay") fecharSheet() });
+$("#sheet-historico").addEventListener("click", async function(){ fecharSheet(); state.appView="historico"; await renderApp(); });
+$("#sheet-usuarios").addEventListener("click", async function(){ fecharSheet(); state.appView="usuarios"; await renderApp(); });
+$("#sheet-portal").addEventListener("click", async function(){ fecharSheet(); await renderPortal(); show("view-portal") });
+$("#sheet-sair").addEventListener("click", async function(){ fecharSheet(); await PA.logout(); state.sessao=null; show("view-login") });
+
+/* ---------------- boot ---------------- */
+(async function boot(){
+  try{
+    var sessao = await PA.getSessaoAtual();
+    if(sessao){ state.sessao = sessao; await entrarNoPortal(); return; }
+  }catch(e){ /* sem sessão válida, cai pro login */ }
+  show("view-login");
+})();
+})();
+</script>
+</body>
+</html>
