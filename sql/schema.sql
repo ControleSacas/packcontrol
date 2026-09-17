@@ -89,14 +89,21 @@ insert into pa_localizacoes (codigo, cor) values
 on conflict (codigo) do nothing;
 
 -- ============================================================
--- Criar os logins (igual ao Gestão de Sacas — é o MESMO projeto,
--- mas isso aqui é uma tabela separada, não mexe em usuarios_sacas):
+-- Criar os logins — é o MESMO projeto Supabase do Gestão de Sacas, e o
+-- app usa o MESMO domínio de e-mail (@gestaosacas.local) de propósito.
 --
+-- Se a pessoa JÁ TEM login no Sacas: não crie conta nova. Só ache o User
+-- UID dela em Authentication > Users (e-mail usuario@gestaosacas.local)
+-- e pule direto pro insert abaixo — ela entra no Pacotes Avulsos com o
+-- mesmo usuário/senha de sempre.
+--
+-- Se a pessoa NÃO TEM login em nenhum dos dois ainda:
 -- 1. Authentication > Users > Add user — e-mail no formato
---    usuario@pontoretirada.local (troque "usuario" pelo login da
+--    usuario@gestaosacas.local (troque "usuario" pelo login da
 --    pessoa), defina uma senha e MARQUE "Auto Confirm User".
 -- 2. Copie o "User UID" que aparece na lista.
--- 3. Rode um insert por pessoa, trocando o UUID:
+-- 3. Rode um insert por pessoa, trocando o UUID (isso aqui é uma tabela
+--    separada, pa_usuarios, não mexe em usuarios_sacas):
 --
 -- insert into pa_usuarios (id, nome, perfil, modulo_pacotes, modulo_sacas) values
 --   ('cole-o-uuid-aqui', 'Sr. Lima',     'gestor',      true, true);

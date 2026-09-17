@@ -34,12 +34,23 @@ tabelas novas: **SQL Editor > New query**, cola o conteúdo de
 
 ## 2. Criar os logins
 
-Igual ao Gestão de Sacas — o Supabase Auth exige e-mail, mas a tela só pede
-um **usuário**; o app completa com `@pontoretirada.local` (constante
-`authDomain` em `config.js`) antes de mandar pro Supabase.
+O Supabase Auth exige e-mail, mas a tela só pede um **usuário**; o app
+completa com `@gestaosacas.local` (constante `authDomain` em `config.js`)
+antes de mandar pro Supabase — **de propósito o MESMO domínio que o
+Gestão de Sacas usa**, porque é o mesmo projeto Supabase por trás dos dois.
+
+**Se a pessoa já tem login no Gestão de Sacas**, não precisa criar conta
+nova — a senha já existe. Só:
+
+1. Vá em **Authentication > Users**, ache a linha da pessoa (e-mail
+   `usuario@gestaosacas.local`) e copie o **User UID**.
+2. Rode o insert do passo 3 abaixo com esse UID. Pronto — ela já consegue
+   entrar no Pacotes Avulsos com o mesmo usuário/senha do Sacas.
+
+**Se a pessoa não tem login em nenhum dos dois ainda:**
 
 1. **Authentication > Users > Add user** — e-mail
-   `usuario@pontoretirada.local` (troque `usuario` pelo login da pessoa),
+   `usuario@gestaosacas.local` (troque `usuario` pelo login da pessoa),
    defina uma senha e **marque "Auto Confirm User"**.
 2. Copie o **User UID**.
 3. No **SQL Editor**, rode um insert (modelo completo com os 4 exemplos do
