@@ -136,9 +136,13 @@
     if (!nome || !nome.trim()) throw new Error("Informe o nome.");
     var email = toAuthEmail(usuario);
     // client à parte, sem salvar sessão — pra não trocar o login de quem está
-    // criando o usuário (o gestor) pelo login da conta recém-criada.
+    // criando o usuário (o gestor) pelo login da conta recém-criada. Precisa de
+    // um storageKey PRÓPRIO (diferente do client principal): mesmo com
+    // persistSession:false, o supabase-js ainda sincroniza sessão entre
+    // instâncias que compartilham a mesma storageKey via BroadcastChannel —
+    // sem isso, criar um usuário "logava" o navegador como a pessoa nova.
     var tempClient = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey, {
-      auth: { persistSession: false, autoRefreshToken: false }
+      auth: { persistSession: false, autoRefreshToken: false, storageKey: "pa-temp-admin-" + Date.now() + "-" + Math.random().toString(36).slice(2) }
     });
     var r = await tempClient.auth.signUp({ email: email, password: senha });
     if (r.error) {
