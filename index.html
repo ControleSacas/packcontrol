@@ -4,6 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Pacotes Avulsos</title>
+<script>
+  (function () {
+    var t = "dark";
+    try { var saved = localStorage.getItem("pa_theme"); if (saved === "dark" || saved === "light") t = saved; } catch (e) {}
+    document.documentElement.setAttribute("data-theme", t);
+  })();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
@@ -71,11 +78,26 @@ button{font-family:inherit}
 }
 .who button{background:none; border:1px solid var(--line-strong); color:var(--ink-soft); padding:5px 10px; border-radius:8px; font-size:12px; cursor:pointer}
 .who button:hover{background:var(--surface-2)}
+.icon-btn{
+  background:none; border:1px solid var(--line-strong); color:var(--ink-soft); cursor:pointer;
+  width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0;
+}
+.icon-btn:hover{background:var(--surface-2)}
+.icon-btn svg{width:15px;height:15px;stroke:currentColor}
 
 .wrap{max-width:1180px; margin-inline:auto; width:100%; padding-inline:20px}
 
-/* login */
-#view-login{min-height:100vh; display:flex; align-items:center; justify-content:center; padding-block:48px}
+/* login — sempre escuro, independente do tema escolhido no resto do app */
+#view-login{
+  min-height:100vh; display:flex; align-items:center; justify-content:center; padding-block:48px;
+  --bg:#1b1915; --surface:#262320; --surface-2:#2f2b26; --ink:#ece5d6;
+  --ink-soft:#d8d1c2; --ink-faint:#b0a897; --line:#3b362e; --line-strong:#4a443a;
+  --accent:#9ab6e8; --accent-soft:#2a3346; --accent-ink:#16203a;
+  --ok:#67c187; --ok-bg:#21331f; --warn:#d69f56; --warn-bg:#38301d;
+  --danger:#e28b7e; --danger-bg:#3a251f;
+  --shadow:0 1px 2px rgba(0,0,0,.3), 0 10px 28px -14px rgba(0,0,0,.6);
+  background:var(--bg);
+}
 .login-card{width:100%; max-width:400px; background:var(--surface); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow); padding:32px 28px}
 .login-card .mark{display:flex; align-items:center; gap:10px; margin-bottom:6px}
 .login-card .mark .box{width:34px;height:34px;border-radius:9px;background:var(--accent);display:flex;align-items:center;justify-content:center}
@@ -292,7 +314,6 @@ td.code, td.mono{font-family:"IBM Plex Mono"; font-size:12.5px}
         <div style="font-size:11px;letter-spacing:.06em;color:var(--ink-faint);text-transform:uppercase;font-weight:600">Ponto de Retirada</div>
       </div>
       <h1>Entrar</h1>
-      <p class="sub">Versão desktop. Use o mesmo login da versão mobile — os dados são os mesmos.</p>
       <form class="login-form" id="form-login">
         <div class="field">
           <label for="li-usuario">Usuário</label>
@@ -314,7 +335,10 @@ td.code, td.mono{font-family:"IBM Plex Mono"; font-size:12.5px}
     <div class="topbar">
       <div class="brand"><span class="dot"></span> Ponto de Retirada</div>
       <div class="spacer"></div>
-      <a href="mobile.html" class="linklike" style="font-size:12.5px;margin-right:4px">Versão mobile</a>
+      <a href="mobile.html" class="linklike" style="font-size:12.5px;margin-right:8px">Versão mobile</a>
+      <button class="icon-btn" id="theme-toggle-1" type="button" title="Alternar tema" aria-label="Alternar tema claro/escuro">
+        <svg id="theme-icon-1" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></svg>
+      </button>
       <div class="who" id="who-badge-portal"></div>
     </div>
     <div class="wrap">
@@ -332,7 +356,10 @@ td.code, td.mono{font-family:"IBM Plex Mono"; font-size:12.5px}
       <button class="linklike" id="btn-back-portal" style="font-size:13px">&larr; Módulos</button>
       <div class="crumb">Pacotes Avulsos / <b id="crumb-view">Painel</b></div>
       <div class="spacer"></div>
-      <a href="mobile.html" class="linklike" style="font-size:12.5px;margin-right:4px">Versão mobile</a>
+      <a href="mobile.html" class="linklike" style="font-size:12.5px;margin-right:8px">Versão mobile</a>
+      <button class="icon-btn" id="theme-toggle-2" type="button" title="Alternar tema" aria-label="Alternar tema claro/escuro">
+        <svg id="theme-icon-2" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></svg>
+      </button>
       <div class="who" id="who-badge-app"></div>
     </div>
     <div class="appbody">
@@ -490,11 +517,6 @@ td.code, td.mono{font-family:"IBM Plex Mono"; font-size:12.5px}
           </div>
           <button type="submit" class="btn btn-primary" style="align-self:flex-start">Criar login</button>
         </form>
-        <p style="font-size:11.5px;color:var(--ink-faint);margin:14px 0 0">
-          A pessoa já tem login no Gestão de Sacas? Não crie de novo — no Supabase, em
-          <b>Authentication &gt; Users</b>, copie o UID dela e libere o acesso direto por SQL
-          (veja <span class="mono">sql/schema.sql</span>) em vez de criar conta nova aqui.
-        </p>
       </div>
     </div>
   </section>
@@ -547,6 +569,23 @@ function toast(msg, isErr){
 }
 function erroMsg(e){ return (e && e.message) ? e.message : "Algo deu errado. Tenta de novo."; }
 function show(id){ $all(".app > section").forEach(function(s){ s.hidden = (s.id !== id) }) }
+
+/* ---------------- tema claro/escuro ---------------- */
+var SUN_PATH = '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>';
+var MOON_PATH = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+function isDarkActive(){ return document.documentElement.getAttribute("data-theme") === "dark" }
+function updateThemeIcons(){
+  var html = isDarkActive() ? SUN_PATH : MOON_PATH;
+  ["#theme-icon-1","#theme-icon-2"].forEach(function(sel){ var n = $(sel); if(n) n.innerHTML = html });
+}
+function toggleTheme(){
+  var next = isDarkActive() ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  try{ localStorage.setItem("pa_theme", next) }catch(e){}
+  updateThemeIcons();
+}
+["#theme-toggle-1","#theme-toggle-2"].forEach(function(sel){ var b = $(sel); if(b) b.addEventListener("click", toggleTheme) });
+updateThemeIcons();
 
 /* ---------------- modal + transferência ---------------- */
 function abrirModal(titulo){
@@ -709,7 +748,7 @@ async function renderPortal(){
   ]);
   if(!u.modulo_sacas){ cSacas.disabled = true; }
   else cSacas.addEventListener("click", function(){
-    toast("O Gestão de Sacas ainda é outro site/login por trás — essa liberação aqui é só pra decidir quem pode acessá-lo.");
+    window.open(PACOTES_AVULSOS_CONFIG.gestaoSacasUrl, "_blank");
   });
   wrap.appendChild(cSacas);
 

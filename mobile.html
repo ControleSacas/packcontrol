@@ -4,6 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Pacotes Avulsos</title>
+<script>
+  (function () {
+    var t = "dark";
+    try { var saved = localStorage.getItem("pa_theme"); if (saved === "dark" || saved === "light") t = saved; } catch (e) {}
+    document.documentElement.setAttribute("data-theme", t);
+  })();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
@@ -57,7 +64,17 @@ button{font-family:inherit}
 .app{min-height:100vh; display:flex; flex-direction:column}
 
 /* login */
-#view-login{min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px}
+/* login — sempre escuro, independente do tema escolhido no resto do app */
+#view-login{
+  min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px;
+  --bg:#1b1915; --surface:#262320; --surface-2:#2f2b26; --ink:#ece5d6;
+  --ink-soft:#d8d1c2; --ink-faint:#b0a897; --line:#3b362e; --line-strong:#4a443a;
+  --accent:#9ab6e8; --accent-soft:#2a3346; --accent-ink:#16203a;
+  --ok:#67c187; --ok-bg:#21331f; --warn:#d69f56; --warn-bg:#38301d;
+  --danger:#e28b7e; --danger-bg:#3a251f;
+  --shadow:0 1px 2px rgba(0,0,0,.3), 0 10px 28px -14px rgba(0,0,0,.6);
+  background:var(--bg);
+}
 .login-card{width:100%; max-width:380px; background:var(--surface); border:1px solid var(--line); border-radius:16px; box-shadow:var(--shadow); padding:26px 22px}
 .login-card .mark{display:flex; align-items:center; gap:10px}
 .login-card .mark .box{width:34px;height:34px;border-radius:9px;background:var(--accent);display:flex;align-items:center;justify-content:center}
@@ -79,6 +96,11 @@ button{font-family:inherit}
 .topbar .brand .dot{width:8px;height:8px;border-radius:50%;background:var(--accent)}
 .topbar .spacer{margin-left:auto}
 .topbar .avatar{width:26px;height:26px;border-radius:50%;background:var(--accent);color:var(--accent-ink);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:11px}
+.icon-btn{
+  background:none; border:1px solid var(--line-strong); color:var(--ink-soft); cursor:pointer;
+  width:30px; height:30px; border-radius:8px; display:flex; align-items:center; justify-content:center; flex-shrink:0;
+}
+.icon-btn svg{width:15px;height:15px;stroke:currentColor}
 
 /* portal */
 .wrap{padding:18px 16px 90px}
@@ -280,7 +302,6 @@ input.mono-input{font-family:"IBM Plex Mono"; letter-spacing:.02em}
         <div style="font-size:11px;letter-spacing:.06em;color:var(--ink-faint);text-transform:uppercase;font-weight:600">Ponto de Retirada</div>
       </div>
       <h1>Entrar</h1>
-      <p class="sub">Versão mobile. Mesmo login da versão desktop — os dados são os mesmos.</p>
       <form class="login-form" id="form-login">
         <div class="field">
           <label for="li-usuario">Usuário</label>
@@ -302,7 +323,10 @@ input.mono-input{font-family:"IBM Plex Mono"; letter-spacing:.02em}
     <div class="topbar">
       <div class="brand"><span class="dot"></span> Ponto de Retirada</div>
       <div class="spacer"></div>
-      <a href="index.html" class="linklike" style="font-size:11.5px;margin-right:2px">Versão desktop</a>
+      <a href="index.html" class="linklike" style="font-size:11.5px;margin-right:6px">Versão desktop</a>
+      <button class="icon-btn" id="theme-toggle-1" type="button" title="Alternar tema" aria-label="Alternar tema claro/escuro" style="margin-right:6px">
+        <svg id="theme-icon-1" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></svg>
+      </button>
       <div class="avatar" id="portal-avatar"></div>
     </div>
     <div class="wrap">
@@ -319,6 +343,9 @@ input.mono-input{font-family:"IBM Plex Mono"; letter-spacing:.02em}
     <div class="topbar">
       <button class="linklike" id="btn-back-portal" style="font-size:13px">&larr; Módulos</button>
       <div class="spacer"></div>
+      <button class="icon-btn" id="theme-toggle-2" type="button" title="Alternar tema" aria-label="Alternar tema claro/escuro" style="margin-right:6px">
+        <svg id="theme-icon-2" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></svg>
+      </button>
       <div class="avatar" id="app-avatar"></div>
     </div>
 
@@ -427,9 +454,6 @@ input.mono-input{font-family:"IBM Plex Mono"; letter-spacing:.02em}
             </div>
             <button type="submit" class="btn btn-primary">Criar login</button>
           </form>
-          <p style="font-size:11px;color:var(--ink-faint);margin:12px 0 0">
-            Pessoa já tem login no Sacas? Não crie de novo — libere o acesso dela por SQL (sql/schema.sql).
-          </p>
         </div>
       </div>
     </div>
@@ -464,10 +488,6 @@ input.mono-input{font-family:"IBM Plex Mono"; letter-spacing:.02em}
       <button class="sheet-item" id="sheet-historico">
         <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 7v5l3 3"/></svg>
         Histórico de entregas
-      </button>
-      <button class="sheet-item" id="sheet-usuarios" hidden>
-        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/></svg>
-        Gerenciar usuários
       </button>
       <button class="sheet-item" id="sheet-portal">
         <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
@@ -532,6 +552,23 @@ function toast(msg, isErr){
 }
 function erroMsg(e){ return (e && e.message) ? e.message : "Algo deu errado. Tenta de novo."; }
 function show(id){ $all(".app > section").forEach(function(s){ s.hidden = (s.id !== id) }) }
+
+/* ---------------- tema claro/escuro ---------------- */
+var SUN_PATH = '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>';
+var MOON_PATH = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+function isDarkActive(){ return document.documentElement.getAttribute("data-theme") === "dark" }
+function updateThemeIcons(){
+  var html = isDarkActive() ? SUN_PATH : MOON_PATH;
+  ["#theme-icon-1","#theme-icon-2"].forEach(function(sel){ var n = $(sel); if(n) n.innerHTML = html });
+}
+function toggleTheme(){
+  var next = isDarkActive() ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  try{ localStorage.setItem("pa_theme", next) }catch(e){}
+  updateThemeIcons();
+}
+["#theme-toggle-1","#theme-toggle-2"].forEach(function(sel){ var b = $(sel); if(b) b.addEventListener("click", toggleTheme) });
+updateThemeIcons();
 
 /* ---------------- modal (aguardando / localização) ---------------- */
 function abrirModal(titulo){
@@ -670,11 +707,10 @@ async function renderPortal(){
   ]);
   if(!u.modulo_sacas){ cSacas.disabled = true; }
   else cSacas.addEventListener("click", function(){
-    toast("O Gestão de Sacas ainda é outro site — essa liberação só decide quem pode acessá-lo.");
+    window.open(PACOTES_AVULSOS_CONFIG.gestaoSacasUrl, "_blank");
   });
   wrap.appendChild(cSacas);
 
-  $("#sheet-usuarios").hidden = u.perfil !== "gestor";
 }
 
 /* ---------------- app ---------------- */
@@ -1047,7 +1083,6 @@ function fecharSheet(){ $("#sheet-overlay").hidden = true; }
 $("#btn-mais").addEventListener("click", abrirSheet);
 $("#sheet-overlay").addEventListener("click", function(e){ if(e.target.id==="sheet-overlay") fecharSheet() });
 $("#sheet-historico").addEventListener("click", async function(){ fecharSheet(); state.appView="historico"; await renderApp(); });
-$("#sheet-usuarios").addEventListener("click", async function(){ fecharSheet(); state.appView="usuarios"; await renderApp(); });
 $("#sheet-portal").addEventListener("click", async function(){ fecharSheet(); await renderPortal(); show("view-portal") });
 $("#sheet-sair").addEventListener("click", async function(){ fecharSheet(); await PA.logout(); state.sessao=null; show("view-login") });
 
