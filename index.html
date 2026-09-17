@@ -488,7 +488,7 @@ td.code, td.mono{font-family:"IBM Plex Mono"; font-size:12.5px}
       </div>
       <div class="tbl-wrap" style="margin-bottom:20px">
         <table>
-          <thead><tr><th>Nome</th><th>Perfil</th><th>Módulos liberados</th></tr></thead>
+          <thead><tr><th>Nome</th><th>Perfil</th><th>Módulos liberados</th><th>Excluir</th></tr></thead>
           <tbody id="tbl-users"></tbody>
         </table>
       </div>
@@ -1078,7 +1078,7 @@ $all("#app-nav button").forEach(function(b){
 /* ---------------- gerenciar usuários ---------------- */
 async function renderUsers(){
   whoBadge("#who-badge-users");
-  var tb = $("#tbl-users"); tb.innerHTML = '<tr><td colspan="3" class="loading">Carregando…</td></tr>';
+  var tb = $("#tbl-users"); tb.innerHTML = '<tr><td colspan="4" class="loading">Carregando…</td></tr>';
   var usuarios = await PA.listarUsuarios();
   tb.innerHTML = "";
   usuarios.forEach(function(u){
@@ -1105,9 +1105,17 @@ async function renderUsers(){
       cb.checked = !!u[pair[0]];
       cb.addEventListener("change", async function(){
         cb.disabled = true;
-        var campos = {}; campos[pair[0]] = cb.checked;
-        try{ await PA.atualizarUsuario(u.id, campos); toast("Acesso de "+u.nome+" a "+pair[1]+" "+(cb.checked?"liberado":"removido")+"."); }
-        catch(err){ toast(erroMsg(err), true); cb.checked = !cb.checked; }
+        try{
+          if(pair[0]==="modulo_sacas"){
+            await PA.atualizarModuloSacas(u.id, u.nome, u.perfil, cb.checked);
+            toast("Acesso de "+u.nome+" ao Gestão de Sacas "+(cb.checked?"liberado — já pode entrar com o mesmo usuário/senha.":"removido."));
+          } else {
+            var campos = {}; campos[pair[0]] = cb.checked;
+            await PA.atualizarUsuario(u.id, campos);
+            toast("Acesso de "+u.nome+" a "+pair[1]+" "+(cb.checked?"liberado":"removido")+".");
+          }
+          u[pair[0]] = cb.checked;
+        }catch(err){ toast(erroMsg(err), true); cb.checked = !cb.checked; }
         cb.disabled = false;
       });
       lab.appendChild(cb);
@@ -1115,6 +1123,22 @@ async function renderUsers(){
       modCell.appendChild(lab);
     });
     tr.appendChild(modCell);
+
+    var tdDel = el("td");
+    var delBtn = el("button",{type:"button", class:"linklike", text:"Excluir"});
+    if(u.id === state.sessao.perfil.id){
+      delBtn.disabled = true; delBtn.title = "Não dá pra excluir o seu próprio usuário";
+    } else {
+      delBtn.addEventListener("click", async function(){
+        if(!confirm("Excluir "+u.nome+"? Ela perde acesso ao Pacotes Avulsos e ao Gestão de Sacas.")) return;
+        delBtn.disabled = true;
+        try{ await PA.excluirUsuario(u.id); toast(u.nome+" excluído."); await renderUsers(); }
+        catch(err){ toast(erroMsg(err), true); delBtn.disabled = false; }
+      });
+    }
+    tdDel.appendChild(delBtn);
+    tr.appendChild(tdDel);
+
     tb.appendChild(tr);
   });
 

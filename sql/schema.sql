@@ -2,7 +2,11 @@
 -- PACOTES AVULSOS — schema do Supabase
 -- Roda no MESMO projeto Supabase do Gestão de Sacas (mesma empresa,
 -- mesmo ponto de retirada) — por isso as tabelas aqui usam o prefixo
--- "pa_" e não tocam em nada de usuarios_sacas/motoristas/fila/registros.
+-- "pa_" e não tocam nas tabelas do Sacas (motoristas/fila/registros).
+-- A exceção é usuarios_sacas: ganha 2 políticas NOVAS (só isso, nada é
+-- alterado ou removido) pra permitir que o Gestor do Pacotes Avulsos
+-- libere/remova acesso real ao Sacas pela tela "Gerenciar Usuários" —
+-- ver bloco no fim do arquivo.
 -- Rode este arquivo inteiro em Supabase > SQL Editor > New query.
 --
 -- Se você já rodou uma versão anterior deste schema, rode só isso abaixo
@@ -12,8 +16,12 @@
 --     for insert with check (
 --       exists (select 1 from pa_usuarios g where g.id = auth.uid() and g.perfil = 'gestor')
 --     );
---   -- essa é a que permite o Gestor cadastrar usuário novo direto pela
---   -- tela "Gerenciar Usuários" do app, sem precisar abrir o Supabase.
+--   create policy "gestor exclui qualquer perfil" on pa_usuarios
+--     for delete using (
+--       exists (select 1 from pa_usuarios g where g.id = auth.uid() and g.perfil = 'gestor')
+--     );
+--   -- essas são as que permitem o Gestor cadastrar/excluir usuário direto
+--   -- pela tela "Gerenciar Usuários" do app, sem precisar abrir o Supabase.
 --
 --   update pa_usuarios set perfil = 'operador' where perfil = 'funcionario';
 --   alter table pa_usuarios alter column perfil set default 'operador';
@@ -22,6 +30,24 @@
 --     check (perfil in ('operador', 'gestor'));
 --   -- essa troca "funcionario" por "operador" (mesmo termo que o
 --   -- Gestão de Sacas já usa em usuarios_sacas).
+--
+--   create policy "pa gestor libera acesso sacas" on usuarios_sacas
+--     for insert with check (
+--       exists (select 1 from pa_usuarios g where g.id = auth.uid() and g.perfil = 'gestor')
+--     );
+--   create policy "pa gestor libera acesso sacas upd" on usuarios_sacas
+--     for update using (
+--       exists (select 1 from pa_usuarios g where g.id = auth.uid() and g.perfil = 'gestor')
+--     ) with check (
+--       exists (select 1 from pa_usuarios g where g.id = auth.uid() and g.perfil = 'gestor')
+--     );
+--   create policy "pa gestor remove acesso sacas" on usuarios_sacas
+--     for delete using (
+--       exists (select 1 from pa_usuarios g where g.id = auth.uid() and g.perfil = 'gestor')
+--     );
+--   -- essas 3 são as únicas que tocam numa tabela do Sacas — só ADICIONAM
+--   -- permissão nova (nada existente muda), pra ligar o checkbox "Gestão
+--   -- de Sacas" da tela de usuários do Pacotes Avulsos a um acesso real.
 -- ============================================================
 
 create extension if not exists pgcrypto;
@@ -95,6 +121,11 @@ create policy "gestor atualiza qualquer perfil" on pa_usuarios
     exists (select 1 from pa_usuarios g where g.id = auth.uid() and g.perfil = 'gestor')
   );
 
+create policy "gestor exclui qualquer perfil" on pa_usuarios
+  for delete using (
+    exists (select 1 from pa_usuarios g where g.id = auth.uid() and g.perfil = 'gestor')
+  );
+
 create policy "equipe autenticada - acesso total" on pa_localizacoes
   for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
 
@@ -136,4 +167,30 @@ on conflict (codigo) do nothing;
 --   ('cole-o-uuid-aqui', 'Eric Braian',  'operador', true, false);
 -- insert into pa_usuarios (id, nome, perfil, modulo_pacotes, modulo_sacas) values
 --   ('cole-o-uuid-aqui', 'Vitor Hugo',   'operador', true, false);
+-- ============================================================
+
+-- ============================================================
+-- Acesso real ao Gestão de Sacas via checkbox do Pacotes Avulsos.
+-- Só ADICIONA políticas novas em usuarios_sacas (tabela do Sacas) — não
+-- altera nem remove nada que já existia lá. Marcar/desmarcar "Gestão de
+-- Sacas" na tela Gerenciar Usuários passa a criar/apagar a linha em
+-- usuarios_sacas de verdade, então a mesma conta (usuário/senha) entra
+-- nos dois sistemas.
+-- ============================================================
+create policy "pa gestor libera acesso sacas" on usuarios_sacas
+  for insert with check (
+    exists (select 1 from pa_usuarios g where g.id = auth.uid() and g.perfil = 'gestor')
+  );
+
+create policy "pa gestor libera acesso sacas upd" on usuarios_sacas
+  for update using (
+    exists (select 1 from pa_usuarios g where g.id = auth.uid() and g.perfil = 'gestor')
+  ) with check (
+    exists (select 1 from pa_usuarios g where g.id = auth.uid() and g.perfil = 'gestor')
+  );
+
+create policy "pa gestor remove acesso sacas" on usuarios_sacas
+  for delete using (
+    exists (select 1 from pa_usuarios g where g.id = auth.uid() and g.perfil = 'gestor')
+  );
 -- ============================================================

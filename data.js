@@ -167,6 +167,30 @@
     var r = await sb.from("pa_usuarios").update(campos).eq("id", id);
     if (r.error) throw r.error;
   }
+  // liga/desliga o acesso DE VERDADE ao Gestão de Sacas (tabela usuarios_sacas
+  // dele, não só o flag local) — mesma conta de login, então funciona com o
+  // mesmo usuário/senha assim que essa linha existir.
+  async function atualizarModuloSacas(id, nome, perfil, ligar) {
+    var r = await sb.from("pa_usuarios").update({ modulo_sacas: ligar }).eq("id", id);
+    if (r.error) throw r.error;
+    if (ligar) {
+      var up = await sb.from("usuarios_sacas").upsert({ id: id, nome: nome, perfil: perfil === "gestor" ? "gestor" : "operador" });
+      if (up.error) throw new Error("Módulo salvo, mas não consegui liberar o acesso real no Sacas: " + up.error.message);
+    } else {
+      var del = await sb.from("usuarios_sacas").delete().eq("id", id);
+      if (del.error) throw new Error("Módulo salvo, mas não consegui remover o acesso real no Sacas: " + del.error.message);
+    }
+  }
+  // tira a pessoa dos dois sistemas (pa_usuarios + usuarios_sacas). A conta de
+  // login em si (Supabase Auth) continua existindo — sem ela não fica logada
+  // em nada, mas pra apagar o login de verdade ainda é manual no Supabase
+  // (Authentication > Users > excluir), não dá pra fazer isso com a chave
+  // anon do navegador.
+  async function excluirUsuario(id) {
+    await sb.from("usuarios_sacas").delete().eq("id", id);
+    var r = await sb.from("pa_usuarios").delete().eq("id", id);
+    if (r.error) throw r.error;
+  }
 
   window.PA = {
     SHELF_COLORS: SHELF_COLORS,
@@ -176,6 +200,7 @@
     listarEstoque: listarEstoque, listarHistorico: listarHistorico,
     cadastrarPacote: cadastrarPacote, cadastrarEmMassaComLocais: cadastrarEmMassaComLocais,
     entregarPacote: entregarPacote, transferirPacote: transferirPacote, buscarPorCodigo: buscarPorCodigo,
-    listarUsuarios: listarUsuarios, atualizarUsuario: atualizarUsuario, criarUsuarioLogin: criarUsuarioLogin
+    listarUsuarios: listarUsuarios, atualizarUsuario: atualizarUsuario, criarUsuarioLogin: criarUsuarioLogin,
+    atualizarModuloSacas: atualizarModuloSacas, excluirUsuario: excluirUsuario
   };
 })();

@@ -489,6 +489,10 @@ input.mono-input{font-family:"IBM Plex Mono"; letter-spacing:.02em}
         <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 7v5l3 3"/></svg>
         Histórico de entregas
       </button>
+      <button class="sheet-item" id="sheet-usuarios" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"/><circle cx="10" cy="7" r="4"/></svg>
+        Gerenciar usuários
+      </button>
       <button class="sheet-item" id="sheet-portal">
         <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
         Voltar aos módulos
@@ -683,6 +687,7 @@ async function renderPortal(){
   $("#portal-avatar").textContent = initials(u.nome);
   $("#app-avatar").textContent = initials(u.nome);
   $("#portal-sub").textContent = "Olá, " + u.nome.split(" ")[0] + ". Escolha um módulo.";
+  $("#sheet-usuarios").hidden = u.perfil !== "gestor";
   var wrap = $("#portal-cards"); wrap.innerHTML = "";
 
   var cPacotes = el("button",{class:"pcard", type:"button"},[
@@ -1033,9 +1038,17 @@ async function renderUsersList(){
       cb.checked = !!u[pair[0]];
       cb.addEventListener("change", async function(){
         cb.disabled = true;
-        var campos = {}; campos[pair[0]] = cb.checked;
-        try{ await PA.atualizarUsuario(u.id, campos); toast("Acesso a "+pair[1]+" "+(cb.checked?"liberado":"removido")+"."); }
-        catch(err){ toast(erroMsg(err), true); cb.checked = !cb.checked; }
+        try{
+          if(pair[0]==="modulo_sacas"){
+            await PA.atualizarModuloSacas(u.id, u.nome, u.perfil, cb.checked);
+            toast("Acesso ao Sacas "+(cb.checked?"liberado de verdade.":"removido."));
+          } else {
+            var campos = {}; campos[pair[0]] = cb.checked;
+            await PA.atualizarUsuario(u.id, campos);
+            toast("Acesso a "+pair[1]+" "+(cb.checked?"liberado":"removido")+".");
+          }
+          u[pair[0]] = cb.checked;
+        }catch(err){ toast(erroMsg(err), true); cb.checked = !cb.checked; }
         cb.disabled = false;
       });
       lab.appendChild(cb);
@@ -1043,6 +1056,22 @@ async function renderUsersList(){
       modRow.appendChild(lab);
     });
     card.appendChild(modRow);
+
+    var delWrap = el("div",{style:"margin-top:10px;text-align:right"});
+    var delBtn = el("button",{type:"button", class:"linklike", text:"Excluir usuário"});
+    if(u.id === state.sessao.perfil.id){
+      delBtn.disabled = true; delBtn.title = "Não dá pra excluir o seu próprio usuário";
+    } else {
+      delBtn.addEventListener("click", async function(){
+        if(!confirm("Excluir "+u.nome+"? Ela perde acesso ao Pacotes Avulsos e ao Gestão de Sacas.")) return;
+        delBtn.disabled = true;
+        try{ await PA.excluirUsuario(u.id); toast(u.nome+" excluído."); await renderUsersList(); }
+        catch(err){ toast(erroMsg(err), true); delBtn.disabled = false; }
+      });
+    }
+    delWrap.appendChild(delBtn);
+    card.appendChild(delWrap);
+
     wrap.appendChild(card);
   });
 
@@ -1083,6 +1112,7 @@ function fecharSheet(){ $("#sheet-overlay").hidden = true; }
 $("#btn-mais").addEventListener("click", abrirSheet);
 $("#sheet-overlay").addEventListener("click", function(e){ if(e.target.id==="sheet-overlay") fecharSheet() });
 $("#sheet-historico").addEventListener("click", async function(){ fecharSheet(); state.appView="historico"; await renderApp(); });
+$("#sheet-usuarios").addEventListener("click", async function(){ fecharSheet(); state.appView="usuarios"; await renderApp(); });
 $("#sheet-portal").addEventListener("click", async function(){ fecharSheet(); await renderPortal(); show("view-portal") });
 $("#sheet-sair").addEventListener("click", async function(){ fecharSheet(); await PA.logout(); state.sessao=null; show("view-login") });
 
