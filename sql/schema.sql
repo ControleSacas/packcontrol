@@ -5,16 +5,23 @@
 -- "pa_" e não tocam em nada de usuarios_sacas/motoristas/fila/registros.
 -- Rode este arquivo inteiro em Supabase > SQL Editor > New query.
 --
--- Se você já rodou uma versão anterior deste schema (sem a política de
--- INSERT do gestor), rode só isso abaixo em vez do arquivo inteiro:
+-- Se você já rodou uma versão anterior deste schema, rode só isso abaixo
+-- em vez do arquivo inteiro:
 --
 --   create policy "gestor cria qualquer perfil" on pa_usuarios
 --     for insert with check (
 --       exists (select 1 from pa_usuarios g where g.id = auth.uid() and g.perfil = 'gestor')
 --     );
+--   -- essa é a que permite o Gestor cadastrar usuário novo direto pela
+--   -- tela "Gerenciar Usuários" do app, sem precisar abrir o Supabase.
 --
--- Isso é o que permite o Gestor cadastrar usuário novo direto pela tela
--- "Gerenciar Usuários" do app, sem precisar abrir o Supabase.
+--   update pa_usuarios set perfil = 'operador' where perfil = 'funcionario';
+--   alter table pa_usuarios alter column perfil set default 'operador';
+--   alter table pa_usuarios drop constraint if exists pa_usuarios_perfil_check;
+--   alter table pa_usuarios add constraint pa_usuarios_perfil_check
+--     check (perfil in ('operador', 'gestor'));
+--   -- essa troca "funcionario" por "operador" (mesmo termo que o
+--   -- Gestão de Sacas já usa em usuarios_sacas).
 -- ============================================================
 
 create extension if not exists pgcrypto;
@@ -23,7 +30,7 @@ create extension if not exists pgcrypto;
 create table if not exists pa_usuarios (
   id              uuid primary key references auth.users(id) on delete cascade,
   nome            text not null,
-  perfil          text not null default 'funcionario' check (perfil in ('funcionario', 'gestor')),
+  perfil          text not null default 'operador' check (perfil in ('operador', 'gestor')),
   modulo_pacotes  boolean not null default true,
   modulo_sacas    boolean not null default false,
   criado_em       timestamptz not null default now()
@@ -124,9 +131,9 @@ on conflict (codigo) do nothing;
 -- insert into pa_usuarios (id, nome, perfil, modulo_pacotes, modulo_sacas) values
 --   ('cole-o-uuid-aqui', 'Sr. Lima',     'gestor',      true, true);
 -- insert into pa_usuarios (id, nome, perfil, modulo_pacotes, modulo_sacas) values
---   ('cole-o-uuid-aqui', 'Marina',       'funcionario', true, true);
+--   ('cole-o-uuid-aqui', 'Marina',       'operador', true, true);
 -- insert into pa_usuarios (id, nome, perfil, modulo_pacotes, modulo_sacas) values
---   ('cole-o-uuid-aqui', 'Eric Braian',  'funcionario', true, false);
+--   ('cole-o-uuid-aqui', 'Eric Braian',  'operador', true, false);
 -- insert into pa_usuarios (id, nome, perfil, modulo_pacotes, modulo_sacas) values
---   ('cole-o-uuid-aqui', 'Vitor Hugo',   'funcionario', true, false);
+--   ('cole-o-uuid-aqui', 'Vitor Hugo',   'operador', true, false);
 -- ============================================================

@@ -421,7 +421,7 @@ input.mono-input{font-family:"IBM Plex Mono"; letter-spacing:.02em}
             <div class="field">
               <label for="nu-perfil">Perfil</label>
               <select id="nu-perfil">
-                <option value="funcionario">Funcionário</option>
+                <option value="operador">Operador</option>
                 <option value="gestor">Gestor</option>
               </select>
             </div>
@@ -980,9 +980,9 @@ async function renderUsersList(){
     var top = el("div",{class:"top"});
     top.appendChild(el("div",{class:"avatar", text:initials(u.nome)}));
     top.appendChild(el("div",{class:"nome", text:u.nome}));
-    var perfilBtn = el("button",{type:"button", class:"role-pill "+(u.perfil==="gestor"?"role-gestor":"role-func"), text:(u.perfil==="gestor"?"Gestor":"Funcionário")});
+    var perfilBtn = el("button",{type:"button", class:"role-pill "+(u.perfil==="gestor"?"role-gestor":"role-func"), text:(u.perfil==="gestor"?"Gestor":"Operador")});
     perfilBtn.addEventListener("click", async function(){
-      var novo = u.perfil==="gestor" ? "funcionario" : "gestor";
+      var novo = u.perfil==="gestor" ? "operador" : "gestor";
       perfilBtn.disabled = true;
       try{ await PA.atualizarUsuario(u.id, {perfil:novo}); u.perfil = novo; await renderUsersList(); }
       catch(err){ toast(erroMsg(err), true); perfilBtn.disabled = false; }

@@ -484,7 +484,7 @@ td.code, td.mono{font-family:"IBM Plex Mono"; font-size:12.5px}
           <div class="field">
             <label for="nu-perfil">Perfil</label>
             <select id="nu-perfil">
-              <option value="funcionario">Funcionário</option>
+              <option value="operador">Operador</option>
               <option value="gestor">Gestor</option>
             </select>
           </div>
@@ -1047,10 +1047,10 @@ async function renderUsers(){
     tr.appendChild(el("td",{html:'<div style="display:flex;align-items:center;gap:8px"><span class="avatar" style="width:24px;height:24px;border-radius:50%;background:var(--accent);color:var(--accent-ink);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600">'+initials(u.nome)+'</span>'+u.nome+'</div>'}));
 
     var tdPerfil = el("td");
-    var perfilBtn = el("button",{type:"button", class:"role-pill "+(u.perfil==="gestor"?"role-gestor":"role-func"), text:(u.perfil==="gestor"?"Gestor":"Funcionário")});
+    var perfilBtn = el("button",{type:"button", class:"role-pill "+(u.perfil==="gestor"?"role-gestor":"role-func"), text:(u.perfil==="gestor"?"Gestor":"Operador")});
     perfilBtn.title = "Clique para alternar";
     perfilBtn.addEventListener("click", async function(){
-      var novo = u.perfil==="gestor" ? "funcionario" : "gestor";
+      var novo = u.perfil==="gestor" ? "operador" : "gestor";
       perfilBtn.disabled = true;
       try{ await PA.atualizarUsuario(u.id, {perfil:novo}); u.perfil = novo; await renderUsers(); }
       catch(err){ toast(erroMsg(err), true); perfilBtn.disabled = false; }
