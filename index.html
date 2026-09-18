@@ -380,6 +380,10 @@ td.code, td.mono{font-family:"IBM Plex Mono"; font-size:12.5px}
           <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 21V8l9-5 9 5v13"/><path d="M9 21v-7h6v7"/></svg>
           Localizações
         </button>
+        <button data-view="vencidos">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 7v5l3 3"/></svg>
+          Vencidos
+        </button>
         <button data-view="historico">
           <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/><path d="M12 7v5l3 3"/></svg>
           Histórico
@@ -461,14 +465,47 @@ td.code, td.mono{font-family:"IBM Plex Mono"; font-size:12.5px}
           </div>
         </div>
 
-        <div id="pv-historico" hidden>
-          <div class="head"><h2>Histórico de entregas</h2><p>Quem cadastrou e quem entregou cada pacote já retirado.</p></div>
-          <div class="field" style="max-width:320px;margin-bottom:14px">
-            <input type="search" id="in-busca-hist" placeholder="Filtrar por código&hellip;" class="mono-input">
+        <!-- VENCIDOS -->
+        <div id="pv-vencidos" hidden>
+          <div class="head"><h2>Vencidos</h2><p>Pacotes parados na agência há muito tempo, ainda não entregues.</p></div>
+          <div class="card" style="max-width:600px;margin-bottom:16px">
+            <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:end">
+              <div class="field" style="margin:0">
+                <label for="venc-dias">A partir de quantos dias parado</label>
+                <input type="text" id="venc-dias" inputmode="numeric" class="mono-input" value="5" style="max-width:90px">
+              </div>
+              <div class="field" style="margin:0;flex:1;min-width:220px">
+                <label for="venc-busca">Buscar código nessa lista</label>
+                <input type="search" id="venc-busca" inputmode="numeric" class="mono-input" placeholder="Digite ou usa o leitor&hellip;" autocomplete="off">
+              </div>
+            </div>
           </div>
           <div class="tbl-wrap">
             <table>
-              <thead><tr><th>Código</th><th>Local</th><th>Cadastrado por</th><th>Cadastrado em</th><th>Entregue por</th><th>Entregue em</th></tr></thead>
+              <thead><tr><th>Código</th><th>Local</th><th>Cadastrado por</th><th>Dias parado</th><th></th></tr></thead>
+              <tbody id="tbl-vencidos"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="pv-historico" hidden>
+          <div class="head"><h2>Histórico</h2><p>Quem cadastrou e quem entregou/devolveu cada pacote já retirado.</p></div>
+          <div style="display:flex;gap:14px;flex-wrap:wrap;align-items:end;margin-bottom:14px">
+            <div class="field" style="max-width:320px;margin:0;flex:1">
+              <label for="in-busca-hist">Filtrar por código</label>
+              <input type="search" id="in-busca-hist" placeholder="Filtrar por código&hellip;" class="mono-input">
+            </div>
+            <div class="field" style="margin:0">
+              <label for="hist-status">Mostrar</label>
+              <select id="hist-status">
+                <option value="entregue" selected>Entregues</option>
+                <option value="devolvido">Devolvidos</option>
+              </select>
+            </div>
+          </div>
+          <div class="tbl-wrap">
+            <table>
+              <thead><tr><th>Código</th><th>Local</th><th>Cadastrado por</th><th>Cadastrado em</th><th>Responsável</th><th>Data</th></tr></thead>
               <tbody id="tbl-historico"></tbody>
             </table>
           </div>
@@ -812,20 +849,22 @@ async function renderPortal(){
 }
 
 /* ---------------- app: pacotes avulsos ---------------- */
-var NAV_LABELS = {painel:"Painel", cadastrar:"Cadastrar", entregar:"Buscar & Entregar", locais:"Localizações", historico:"Histórico", relatorio:"Relatório"};
+var NAV_LABELS = {painel:"Painel", cadastrar:"Cadastrar", entregar:"Buscar & Entregar", locais:"Localizações", vencidos:"Vencidos", historico:"Histórico", relatorio:"Relatório"};
+var LIMITE_VENCIDO_DIAS = 5;
 
 async function renderApp(){
   whoBadge("#who-badge-app");
   state.locais = await PA.listarLocalizacoes();
   $all("#app-nav button").forEach(function(b){ b.classList.toggle("on", b.dataset.view===state.appView) });
   $("#crumb-view").textContent = NAV_LABELS[state.appView];
-  ["painel","cadastrar","entregar","locais","historico","relatorio"].forEach(function(v){
+  ["painel","cadastrar","entregar","locais","vencidos","historico","relatorio"].forEach(function(v){
     $("#pv-"+v).hidden = (v !== state.appView);
   });
   if(state.appView==="painel") await renderPainel();
   if(state.appView==="cadastrar") await renderCadastrar();
   if(state.appView==="entregar") renderEntregar();
   if(state.appView==="locais") await renderLocais();
+  if(state.appView==="vencidos") await renderVencidos();
   if(state.appView==="historico") await renderHistorico();
   if(state.appView==="relatorio") await renderRelatorio();
 }
@@ -1037,6 +1076,58 @@ async function renderLocais(){
   }
 }
 
+/* ---------------- vencidos ---------------- */
+async function renderVencidos(){
+  var diasInp = $("#venc-dias"), buscaInp = $("#venc-busca");
+  if(!diasInp.value) diasInp.value = String(LIMITE_VENCIDO_DIAS);
+  var estoqueCache = null;
+
+  async function atualizar(){
+    if(!estoqueCache) estoqueCache = await PA.listarEstoque();
+    var n = Math.max(1, parseInt(diasInp.value,10)||1);
+    var termo = buscaInp.value.trim();
+    var agora = Date.now();
+    var lista = estoqueCache.map(function(p){
+      return { p:p, dias: Math.floor((agora - new Date(p.cadastrado_em).getTime())/86400000) };
+    }).filter(function(x){ return x.dias >= n; })
+      .filter(function(x){ return !termo || x.p.codigo.indexOf(termo)!==-1; })
+      .sort(function(a,b){ return b.dias-a.dias; });
+
+    var tb = $("#tbl-vencidos"); tb.innerHTML = "";
+    if(!lista.length){ tb.appendChild(el("tr",{},[el("td",{colspan:"5", class:"empty-msg", text:"Nenhum pacote nessa faixa."})])); return; }
+    lista.forEach(function(x){
+      var tdAcao = el("td");
+      var devBtn = el("button",{type:"button", class:"btn btn-ghost", style:"padding:6px 12px;font-size:12px", text:"Devolver"});
+      devBtn.addEventListener("click", async function(){
+        if(!confirm("Marcar o pacote " + x.p.codigo + " como devolvido?")) return;
+        devBtn.disabled = true;
+        try{
+          await PA.devolverPacote(x.p.id, state.sessao.perfil.nome);
+          toast("Pacote " + x.p.codigo + " marcado como devolvido.");
+          estoqueCache = null;
+          await atualizar();
+        }catch(err){ toast(erroMsg(err), true); devBtn.disabled = false; }
+      });
+      tdAcao.appendChild(devBtn);
+      tb.appendChild(el("tr",{},[
+        el("td",{class:"code", text:x.p.codigo}),
+        el("td",{html:'<span class="pill" style="background:'+locColor(x.p.local)+'">'+x.p.local+'</span>'}),
+        el("td",{text:x.p.cadastrado_por}),
+        el("td",{text:x.dias+" dia"+(x.dias===1?"":"s")}),
+        tdAcao
+      ]));
+    });
+  }
+
+  if(!diasInp._wired){
+    diasInp._wired = true;
+    diasInp.addEventListener("input", atualizar);
+    buscaInp.addEventListener("input", function(){ limparCampoCodigo(buscaInp); atualizar(); });
+  }
+  estoqueCache = null;
+  await atualizar();
+}
+
 function renderEntregar(){
   $("#pkg-detail").hidden = true; $("#pkg-detail").innerHTML = "";
   $("#busca-results").innerHTML = "";
@@ -1073,7 +1164,12 @@ function mostrarPacote(p){
   $("#busca-results").innerHTML = "";
   $("#in-busca").value = p.codigo;
   var box = $("#pkg-detail"); box.hidden = false; box.innerHTML = "";
+  var dias = Math.floor((Date.now() - new Date(p.cadastrado_em).getTime())/86400000);
+  var vencido = dias >= LIMITE_VENCIDO_DIAS;
   box.appendChild(el("div",{class:"loc-big", style:"background:"+locColor(p.local), text:p.local}));
+  if(vencido){
+    box.appendChild(el("div",{class:"pill", style:"background:var(--danger);margin-bottom:14px", text:"⚠ Vencido — " + dias + " dias parado"}));
+  }
   var kv = el("dl",{class:"kv"});
   function row(k,v){ kv.appendChild(el("dt",{text:k})); kv.appendChild(el("dd",{text:v||"—"})) }
   row("Código", p.codigo);
@@ -1083,6 +1179,7 @@ function mostrarPacote(p){
 
   var btn = el("button",{class:"btn btn-ok", type:"button", text:"Confirmar entrega"});
   btn.addEventListener("click", async function(){
+    if(vencido && !confirm("Pacote vencido (" + dias + " dias parado) — entregar assim mesmo?")) return;
     btn.disabled = true;
     try{
       await PA.entregarPacote(p.id, state.sessao.perfil.nome);
@@ -1095,26 +1192,31 @@ function mostrarPacote(p){
 }
 
 async function renderHistorico(filtro){
+  var statusSel = $("#hist-status");
+  var status = statusSel.value || "entregue";
   var tb = $("#tbl-historico"); tb.innerHTML = '<tr><td colspan="6" class="loading">Carregando…</td></tr>';
-  var entregues = await PA.listarHistorico(filtro);
+  var lista = await PA.listarHistorico(filtro, status);
   tb.innerHTML = "";
-  if(!entregues.length){
+  if(!lista.length){
     tb.appendChild(el("tr",{},[el("td",{colspan:"6", class:"empty-msg", text:"Nada por aqui ainda."})]));
   }
-  entregues.forEach(function(p){
+  lista.forEach(function(p){
+    var responsavel = status==="devolvido" ? p.devolvido_por : p.entregue_por;
+    var quando = status==="devolvido" ? p.devolvido_em : p.entregue_em;
     tb.appendChild(el("tr",{},[
       el("td",{class:"code", text:p.codigo}),
       el("td",{html:'<span class="pill" style="background:'+locColor(p.local)+'">'+p.local+'</span>'}),
       el("td",{text:p.cadastrado_por}),
       el("td",{text:fmtData(p.cadastrado_em)}),
-      el("td",{text:p.entregue_por}),
-      el("td",{text:fmtData(p.entregue_em)})
+      el("td",{text:responsavel}),
+      el("td",{text:fmtData(quando)})
     ]));
   });
   var inp = $("#in-busca-hist");
   if(!inp._wired){
     inp._wired = true;
     inp.addEventListener("input", function(){ renderHistorico(inp.value.trim()) });
+    statusSel.addEventListener("change", function(){ renderHistorico(inp.value.trim()) });
   }
 }
 

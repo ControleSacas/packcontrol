@@ -81,8 +81,10 @@
       return sb.from("pa_pacotes").select("*").eq("status", "estoque").range(a, b);
     });
   }
-  async function listarHistorico(filtroCodigo) {
-    var q = sb.from("pa_pacotes").select("*").eq("status", "entregue").order("entregue_em", { ascending: false }).limit(500);
+  async function listarHistorico(filtroCodigo, statusFiltro) {
+    var status = statusFiltro || "entregue";
+    var campoData = status === "devolvido" ? "devolvido_em" : "entregue_em";
+    var q = sb.from("pa_pacotes").select("*").eq("status", status).order(campoData, { ascending: false }).limit(500);
     if (filtroCodigo) q = q.ilike("codigo", "%" + filtroCodigo + "%");
     var r = await q;
     if (r.error) throw r.error;
@@ -117,6 +119,10 @@
   }
   async function entregarPacote(id, entreguePor) {
     var r = await sb.from("pa_pacotes").update({ status: "entregue", entregue_por: entreguePor, entregue_em: new Date().toISOString() }).eq("id", id);
+    if (r.error) throw r.error;
+  }
+  async function devolverPacote(id, devolvidoPor) {
+    var r = await sb.from("pa_pacotes").update({ status: "devolvido", devolvido_por: devolvidoPor, devolvido_em: new Date().toISOString() }).eq("id", id);
     if (r.error) throw r.error;
   }
   async function transferirPacote(id, novoLocal) {
@@ -213,7 +219,7 @@
     alternarLocalizacao: alternarLocalizacao, excluirLocalizacao: excluirLocalizacao,
     listarEstoque: listarEstoque, listarHistorico: listarHistorico,
     cadastrarPacote: cadastrarPacote, cadastrarEmMassaComLocais: cadastrarEmMassaComLocais,
-    entregarPacote: entregarPacote, transferirPacote: transferirPacote, buscarPorCodigo: buscarPorCodigo,
+    entregarPacote: entregarPacote, devolverPacote: devolverPacote, transferirPacote: transferirPacote, buscarPorCodigo: buscarPorCodigo,
     relatorioPeriodo: relatorioPeriodo,
     listarUsuarios: listarUsuarios, atualizarUsuario: atualizarUsuario, criarUsuarioLogin: criarUsuarioLogin,
     atualizarModuloSacas: atualizarModuloSacas, excluirUsuario: excluirUsuario

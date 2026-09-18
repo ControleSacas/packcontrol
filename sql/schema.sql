@@ -48,6 +48,17 @@
 --   -- essas 3 são as únicas que tocam numa tabela do Sacas — só ADICIONAM
 --   -- permissão nova (nada existente muda), pra ligar o checkbox "Gestão
 --   -- de Sacas" da tela de usuários do Pacotes Avulsos a um acesso real.
+--   -- ATENÇÃO: essas 3 políticas de usuarios_sacas foram DEPOIS trocadas
+--   -- pela função pa_sync_acesso_sacas (RPC) — ver bloco bem no final
+--   -- deste arquivo. Se estiver rodando isso do zero, pule direto pra lá.
+--
+--   alter table pa_pacotes drop constraint if exists pa_pacotes_status_check;
+--   alter table pa_pacotes add constraint pa_pacotes_status_check
+--     check (status in ('estoque', 'entregue', 'devolvido'));
+--   alter table pa_pacotes add column if not exists devolvido_por text;
+--   alter table pa_pacotes add column if not exists devolvido_em timestamptz;
+--   -- status novo "devolvido" — pra quando um pacote vencido é devolvido
+--   -- em vez de entregue ao cliente (aba "Vencidos").
 -- ============================================================
 
 create extension if not exists pgcrypto;
@@ -78,11 +89,13 @@ create table if not exists pa_pacotes (
   id              uuid primary key default gen_random_uuid(),
   codigo          text not null unique check (codigo ~ '^[0-9]{11}$'),
   local           text not null references pa_localizacoes(codigo) on delete restrict,
-  status          text not null default 'estoque' check (status in ('estoque', 'entregue')),
+  status          text not null default 'estoque' check (status in ('estoque', 'entregue', 'devolvido')),
   cadastrado_por  text not null,
   cadastrado_em   timestamptz not null default now(),
   entregue_por    text,
-  entregue_em     timestamptz
+  entregue_em     timestamptz,
+  devolvido_por   text,
+  devolvido_em    timestamptz
 );
 
 create index if not exists pa_pacotes_status_idx on pa_pacotes (status);
@@ -171,26 +184,47 @@ on conflict (codigo) do nothing;
 
 -- ============================================================
 -- Acesso real ao Gestão de Sacas via checkbox do Pacotes Avulsos.
--- Só ADICIONA políticas novas em usuarios_sacas (tabela do Sacas) — não
--- altera nem remove nada que já existia lá. Marcar/desmarcar "Gestão de
--- Sacas" na tela Gerenciar Usuários passa a criar/apagar a linha em
--- usuarios_sacas de verdade, então a mesma conta (usuário/senha) entra
--- nos dois sistemas.
+--
+-- Isso NÃO funciona como política simples de RLS em usuarios_sacas
+-- checando pa_usuarios (testado e confirmado que falha de forma
+-- inconsistente pela API REST, mesmo com a política tecnicamente
+-- correta — ver memória "feedback_rls_cross_tabela_via_rpc"). A solução
+-- que funciona é uma função RPC security definer, que verifica a
+-- permissão ela mesma e escreve direto, ignorando RLS pra essa escrita
+-- específica.
 -- ============================================================
-create policy "pa gestor libera acesso sacas" on usuarios_sacas
-  for insert with check (
-    exists (select 1 from pa_usuarios g where g.id = auth.uid() and g.perfil = 'gestor')
+create or replace function pa_is_gestor()
+returns boolean
+language sql
+security definer
+set search_path = public
+stable
+as $$
+  select exists (
+    select 1 from pa_usuarios g where g.id = auth.uid() and g.perfil = 'gestor'
   );
+$$;
 
-create policy "pa gestor libera acesso sacas upd" on usuarios_sacas
-  for update using (
-    exists (select 1 from pa_usuarios g where g.id = auth.uid() and g.perfil = 'gestor')
-  ) with check (
-    exists (select 1 from pa_usuarios g where g.id = auth.uid() and g.perfil = 'gestor')
-  );
+create or replace function pa_sync_acesso_sacas(alvo_id uuid, alvo_nome text, alvo_perfil text, ligar boolean)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if not pa_is_gestor() then
+    raise exception 'Só o gestor pode alterar acesso ao Sacas.';
+  end if;
 
-create policy "pa gestor remove acesso sacas" on usuarios_sacas
-  for delete using (
-    exists (select 1 from pa_usuarios g where g.id = auth.uid() and g.perfil = 'gestor')
-  );
+  if ligar then
+    insert into usuarios_sacas (id, nome, perfil)
+    values (alvo_id, alvo_nome, case when alvo_perfil = 'gestor' then 'gestor' else 'operador' end)
+    on conflict (id) do update set nome = excluded.nome, perfil = excluded.perfil;
+  else
+    delete from usuarios_sacas where id = alvo_id;
+  end if;
+end;
+$$;
+
+grant execute on function pa_sync_acesso_sacas(uuid, text, text, boolean) to authenticated;
 -- ============================================================
