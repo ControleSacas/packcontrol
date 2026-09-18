@@ -613,14 +613,14 @@ function toast(msg, isErr){
 }
 function erroMsg(e){ return (e && e.message) ? e.message : "Algo deu errado. Tenta de novo."; }
 // leitor de código de barras/QR "digita" o conteúdo lido no campo focado —
-// às vezes vem só o número, às vezes vem um JSON tipo {"id":"47894281976","t":"lm"}.
-// Essa função tenta achar o campo "id" primeiro, senão pega os 11 dígitos seguidos.
+// às vezes vem só o número, às vezes vem um JSON tipo {"id":"47894281976","t":"lm"},
+// e às vezes a pontuação sai embaralhada (leitor com layout de teclado diferente
+// do Windows). Os 11 dígitos sempre vêm juntos, então busca isso primeiro —
+// funciona independente do resto do texto estar certo ou não.
 function extrairCodigo11(texto){
   if(!texto) return "";
-  var m = texto.match(/"id"\s*:\s*"?(\d{11})"?/);
-  if(m) return m[1];
-  var m2 = texto.match(/\d{11}/);
-  if(m2) return m2[0];
+  var m = texto.match(/\d{11}/);
+  if(m) return m[0];
   return texto.replace(/\D/g,"");
 }
 function limparCampoCodigo(input){
