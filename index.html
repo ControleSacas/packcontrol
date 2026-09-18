@@ -912,19 +912,24 @@ var LIMITE_VENCIDO_DIAS = 5;
 
 async function renderApp(){
   whoBadge("#who-badge-app");
-  state.locais = await PA.listarLocalizacoes();
+  try{ state.locais = await PA.listarLocalizacoes(); }
+  catch(e){ toast(erroMsg(e), true); state.locais = state.locais || []; }
+  // troca a aba sempre, mesmo se algo acima falhou — nunca deixa a tela
+  // presa na aba antiga.
   $all("#app-nav button").forEach(function(b){ b.classList.toggle("on", b.dataset.view===state.appView) });
   $("#crumb-view").textContent = NAV_LABELS[state.appView];
   ["painel","cadastrar","entregar","locais","vencidos","historico","relatorio"].forEach(function(v){
     $("#pv-"+v).hidden = (v !== state.appView);
   });
-  if(state.appView==="painel") await renderPainel();
-  if(state.appView==="cadastrar") await renderCadastrar();
-  if(state.appView==="entregar") renderEntregar();
-  if(state.appView==="locais") await renderLocais();
-  if(state.appView==="vencidos") await renderVencidos();
-  if(state.appView==="historico") await renderHistorico();
-  if(state.appView==="relatorio") await renderRelatorio();
+  try{
+    if(state.appView==="painel") await renderPainel();
+    if(state.appView==="cadastrar") await renderCadastrar();
+    if(state.appView==="entregar") renderEntregar();
+    if(state.appView==="locais") await renderLocais();
+    if(state.appView==="vencidos") await renderVencidos();
+    if(state.appView==="historico") await renderHistorico();
+    if(state.appView==="relatorio") await renderRelatorio();
+  }catch(e){ toast(erroMsg(e), true); }
 }
 
 async function renderPainel(){
