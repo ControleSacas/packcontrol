@@ -972,6 +972,7 @@ async function renderCadastrar(){
         state.novoPacoteLocal = local;
         state.locais = await PA.listarLocalizacoes();
         refreshLocTiles();
+        $("#in-codigo").focus();
       }catch(err){ toast(erroMsg(err), true); }
       btn.disabled = false;
     });
