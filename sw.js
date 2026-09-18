@@ -36,16 +36,19 @@ self.addEventListener("fetch", function (e) {
   if (req.method !== "GET") return;
   if (req.url.indexOf("supabase.co") !== -1) return; // chamadas ao banco passam direto, sem cache do SW
 
+  // rede primeiro sempre (pega a versão mais nova quando tem conexão) — o
+  // cache só entra se a rede falhar de verdade. Com "cache primeiro" o
+  // navegador ficava preso numa versão antiga do app depois de cada
+  // atualização, mesmo com internet normal.
   e.respondWith(
-    caches.match(req).then(function (cached) {
-      var atualizado = fetch(req).then(function (res) {
-        if (res && res.status === 200) {
-          var copia = res.clone();
-          caches.open(CACHE).then(function (c) { c.put(req, copia); });
-        }
-        return res;
-      }).catch(function () { return cached; });
-      return cached || atualizado;
+    fetch(req).then(function (res) {
+      if (res && res.status === 200) {
+        var copia = res.clone();
+        caches.open(CACHE).then(function (c) { c.put(req, copia); });
+      }
+      return res;
+    }).catch(function () {
+      return caches.match(req);
     })
   );
 });
