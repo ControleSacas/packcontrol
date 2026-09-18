@@ -80,7 +80,24 @@
   }
 
   function isNetworkError(e) {
-    return estaOffline() || (e && (e.name === "TypeError" || /fetch|network|failed to fetch/i.test(String(e.message || ""))));
+    return estaOffline() || (e && (e.name === "TypeError" || e._timeout === true || /fetch|network|failed to fetch/i.test(String(e.message || ""))));
+  }
+  // navigator.onLine só diz se a placa de rede está ativa, não se tem
+  // internet de verdade (ex.: WiFi ligado mas roteador sem sinal) — sem
+  // isso, uma chamada real ficaria travada esperando resposta que nunca
+  // chega. Qualquer chamada "online" abaixo passa por isso, com um limite
+  // curto pra cair rápido pro modo offline em vez de travar a tela. A
+  // mensagem já vem pronta pra mostrar (mesmo pras chamadas que não têm
+  // fila offline e deixam o erro subir direto pra tela).
+  function comTimeout(promise, ms) {
+    return new Promise(function (resolve, reject) {
+      var t = setTimeout(function () {
+        var e = new Error("Sem conexão com o servidor — tenta de novo.");
+        e._timeout = true;
+        reject(e);
+      }, ms || 7000);
+      promise.then(function (v) { clearTimeout(t); resolve(v); }, function (e) { clearTimeout(t); reject(e); });
+    });
   }
 
   // roda a fila pendente contra o Supabase de verdade, em ordem — chamada
@@ -107,38 +124,73 @@
       }
     }
     filaSet(restante);
-    if (ok > 0) { try { cacheEstoqueSet(await fetchAll(function (a2, b2) { return sb.from("pa_pacotes").select("*").eq("status", "estoque").range(a2, b2); })); } catch (e) {} }
+    if (ok > 0) { try { cacheEstoqueSet(await comTimeout(fetchAll(function (a2, b2) { return sb.from("pa_pacotes").select("*").eq("status", "estoque").range(a2, b2); }), 9000)); } catch (e) {} }
     sincronizando = false;
     return { ok: ok, falhou: falhou };
   }
 
+  function cachePerfilGet() { return lsGet("cache_perfil", null); }
+  function cachePerfilSet(p) { lsSet("cache_perfil", p); }
+  // supabase-js guarda a sessão já validada em localStorage sob uma chave
+  // "...-auth-token" — lendo direto daqui não depende de nenhuma chamada de
+  // rede, então funciona mesmo quando sb.auth.getSession() trava esperando
+  // um refresh que não consegue completar (sem internet de verdade).
+  function lerSessaoBrutaDoLocalStorage() {
+    try {
+      var chave = Object.keys(localStorage).filter(function (k) { return k.indexOf("-auth-token") !== -1; })[0];
+      if (!chave) return null;
+      return JSON.parse(localStorage.getItem(chave));
+    } catch (e) { return null; }
+  }
+
   async function carregarPerfil(authUser) {
-    var r = await sb.from("pa_usuarios").select("*").eq("id", authUser.id).maybeSingle();
-    if (r.error) throw r.error;
-    if (!r.data) throw new Error("Esse login ainda não tem perfil liberado no Pacotes Avulsos. Fale com o gestor.");
-    return { authUser: authUser, perfil: r.data };
+    try {
+      var r = await comTimeout(sb.from("pa_usuarios").select("*").eq("id", authUser.id).maybeSingle());
+      if (r.error) throw r.error;
+      if (!r.data) throw new Error("Esse login ainda não tem perfil liberado no Pacotes Avulsos. Fale com o gestor.");
+      cachePerfilSet(r.data);
+      return { authUser: authUser, perfil: r.data };
+    } catch (e) {
+      if (isNetworkError(e)) {
+        var cache = cachePerfilGet();
+        if (cache && cache.id === authUser.id) return { authUser: authUser, perfil: cache };
+      }
+      throw e;
+    }
   }
 
   async function login(usuario, senha) {
     var email = toAuthEmail(usuario);
-    var r = await sb.auth.signInWithPassword({ email: email, password: senha });
+    var r = await comTimeout(sb.auth.signInWithPassword({ email: email, password: senha }));
     if (r.error || !r.data.user) throw new Error("Usuário ou senha inválidos.");
     return await carregarPerfil(r.data.user);
   }
 
-  async function logout() { await sb.auth.signOut(); }
+  async function logout() { try { await comTimeout(sb.auth.signOut(), 4000); } catch (e) {} }
 
   async function getSessaoAtual() {
-    var r = await sb.auth.getSession();
-    if (!r.data.session) return null;
-    return await carregarPerfil(r.data.session.user);
+    try {
+      var r = await comTimeout(sb.auth.getSession());
+      if (!r.data.session) return null;
+      return await carregarPerfil(r.data.session.user);
+    } catch (e) {
+      if (isNetworkError(e)) {
+        var bruta = lerSessaoBrutaDoLocalStorage();
+        if (bruta && bruta.user) {
+          var cache = cachePerfilGet();
+          if (cache && cache.id === bruta.user.id) return { authUser: bruta.user, perfil: cache };
+        }
+        return null;
+      }
+      throw e;
+    }
   }
 
   /* ---------- localizações ---------- */
   async function listarLocalizacoes() {
     if (estaOffline()) return cacheLocaisGet();
     try {
-      var r = await sb.from("pa_localizacoes").select("*").order("codigo");
+      var r = await comTimeout(sb.from("pa_localizacoes").select("*").order("codigo"));
       if (r.error) throw r.error;
       cacheLocaisSet(r.data);
       return r.data;
@@ -148,7 +200,7 @@
     }
   }
   async function criarLocalizacao(codigo, cor) {
-    var r = await sb.from("pa_localizacoes").insert({ codigo: codigo, cor: cor }).select().single();
+    var r = await comTimeout(sb.from("pa_localizacoes").insert({ codigo: codigo, cor: cor }).select().single());
     if (r.error) {
       if (r.error.code === "23505") throw new Error("Já existe uma localização com esse código.");
       throw r.error;
@@ -156,11 +208,11 @@
     return r.data;
   }
   async function alternarLocalizacao(codigo, ativa) {
-    var r = await sb.from("pa_localizacoes").update({ ativa: ativa }).eq("codigo", codigo);
+    var r = await comTimeout(sb.from("pa_localizacoes").update({ ativa: ativa }).eq("codigo", codigo));
     if (r.error) throw r.error;
   }
   async function excluirLocalizacao(codigo) {
-    var r = await sb.from("pa_localizacoes").delete().eq("codigo", codigo);
+    var r = await comTimeout(sb.from("pa_localizacoes").delete().eq("codigo", codigo));
     if (r.error) {
       if (r.error.code === "23503") throw new Error("Só dá pra excluir localizações sem pacotes.");
       throw r.error;
@@ -171,9 +223,9 @@
   async function listarEstoque() {
     if (estaOffline()) return estoqueComFila();
     try {
-      var dados = await fetchAll(function (a, b) {
+      var dados = await comTimeout(fetchAll(function (a, b) {
         return sb.from("pa_pacotes").select("*").eq("status", "estoque").range(a, b);
-      });
+      }), 9000);
       cacheEstoqueSet(dados);
       return filaGet().length ? estoqueComFila() : dados;
     } catch (e) {
@@ -186,12 +238,17 @@
     var campoData = status === "devolvido" ? "devolvido_em" : "entregue_em";
     var q = sb.from("pa_pacotes").select("*").eq("status", status).order(campoData, { ascending: false }).limit(500);
     if (filtroCodigo) q = q.ilike("codigo", "%" + filtroCodigo + "%");
-    var r = await q;
-    if (r.error) throw r.error;
-    return r.data;
+    try {
+      var r = await comTimeout(q);
+      if (r.error) throw r.error;
+      return r.data;
+    } catch (e) {
+      if (isNetworkError(e)) return []; // sem internet de verdade — não trava a tela, só fica sem esse dado
+      throw e;
+    }
   }
   async function cadastrarPacoteOnline(codigo, local, cadastradoPor) {
-    var r = await sb.from("pa_pacotes").insert({ codigo: codigo, local: local, cadastrado_por: cadastradoPor }).select().single();
+    var r = await comTimeout(sb.from("pa_pacotes").insert({ codigo: codigo, local: local, cadastrado_por: cadastradoPor }).select().single());
     if (r.error) {
       if (r.error.code === "23505") throw new Error("Já existe um pacote cadastrado com esse código.");
       throw r.error;
@@ -239,7 +296,7 @@
     return { inseridos: inseridos, novasLocs: novasLocs.length, duplicados: duplicados };
   }
   async function entregarPacoteOnline(id, entreguePor) {
-    var r = await sb.from("pa_pacotes").update({ status: "entregue", entregue_por: entreguePor, entregue_em: new Date().toISOString() }).eq("id", id);
+    var r = await comTimeout(sb.from("pa_pacotes").update({ status: "entregue", entregue_por: entreguePor, entregue_em: new Date().toISOString() }).eq("id", id));
     if (r.error) throw r.error;
   }
   async function entregarPacote(id, entreguePor) {
@@ -252,7 +309,7 @@
     }
   }
   async function devolverPacoteOnline(id, devolvidoPor) {
-    var r = await sb.from("pa_pacotes").update({ status: "devolvido", devolvido_por: devolvidoPor, devolvido_em: new Date().toISOString() }).eq("id", id);
+    var r = await comTimeout(sb.from("pa_pacotes").update({ status: "devolvido", devolvido_por: devolvidoPor, devolvido_em: new Date().toISOString() }).eq("id", id));
     if (r.error) throw r.error;
   }
   async function devolverPacote(id, devolvidoPor) {
@@ -265,7 +322,7 @@
     }
   }
   async function transferirPacoteOnline(id, novoLocal) {
-    var r = await sb.from("pa_pacotes").update({ local: novoLocal }).eq("id", id);
+    var r = await comTimeout(sb.from("pa_pacotes").update({ local: novoLocal }).eq("id", id));
     if (r.error) throw r.error;
   }
   async function transferirPacote(id, novoLocal) {
@@ -280,7 +337,7 @@
   async function buscarPorCodigo(q) {
     if (estaOffline()) return estoqueComFila().filter(function (p) { return p.codigo.indexOf(q) !== -1; }).slice(0, 8);
     try {
-      var r = await sb.from("pa_pacotes").select("*").eq("status", "estoque").ilike("codigo", "%" + q + "%").order("cadastrado_em", { ascending: false }).limit(8);
+      var r = await comTimeout(sb.from("pa_pacotes").select("*").eq("status", "estoque").ilike("codigo", "%" + q + "%").order("cadastrado_em", { ascending: false }).limit(8));
       if (r.error) throw r.error;
       return r.data;
     } catch (e) {
@@ -292,11 +349,11 @@
   /* ---------- relatório ---------- */
   // inicioISO/fimISOExclusivo: strings ISO; fim é exclusivo (ex.: "2026-10-01T00:00:00" pra pegar até 30/09).
   async function relatorioPeriodo(inicioISO, fimISOExclusivo) {
-    var recebidos = await sb.from("pa_pacotes").select("id", { count: "exact", head: true })
-      .gte("cadastrado_em", inicioISO).lt("cadastrado_em", fimISOExclusivo);
+    var recebidos = await comTimeout(sb.from("pa_pacotes").select("id", { count: "exact", head: true })
+      .gte("cadastrado_em", inicioISO).lt("cadastrado_em", fimISOExclusivo));
     if (recebidos.error) throw recebidos.error;
-    var despachados = await sb.from("pa_pacotes").select("id", { count: "exact", head: true })
-      .eq("status", "entregue").gte("entregue_em", inicioISO).lt("entregue_em", fimISOExclusivo);
+    var despachados = await comTimeout(sb.from("pa_pacotes").select("id", { count: "exact", head: true })
+      .eq("status", "entregue").gte("entregue_em", inicioISO).lt("entregue_em", fimISOExclusivo));
     if (despachados.error) throw despachados.error;
     return { recebidos: recebidos.count || 0, despachados: despachados.count || 0 };
   }
@@ -316,7 +373,7 @@
     var tempClient = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey, {
       auth: { persistSession: false, autoRefreshToken: false, storageKey: "pa-temp-admin-" + Date.now() + "-" + Math.random().toString(36).slice(2) }
     });
-    var r = await tempClient.auth.signUp({ email: email, password: senha });
+    var r = await comTimeout(tempClient.auth.signUp({ email: email, password: senha }));
     if (r.error) {
       var msg = String(r.error.message || "").toLowerCase();
       if (msg.indexOf("already registered") !== -1 || msg.indexOf("already exists") !== -1) {
@@ -326,21 +383,21 @@
     }
     if (!r.data.user) throw new Error("Não consegui criar o login — tenta de novo.");
     var precisaConfirmar = !r.data.session;
-    var ins = await sb.from("pa_usuarios").insert({
+    var ins = await comTimeout(sb.from("pa_usuarios").insert({
       id: r.data.user.id, nome: nome, perfil: perfil,
       modulo_pacotes: moduloPacotes, modulo_sacas: moduloSacas
-    });
+    }));
     if (ins.error) throw ins.error;
     return { id: r.data.user.id, precisaConfirmar: precisaConfirmar };
   }
 
   async function listarUsuarios() {
-    var r = await sb.from("pa_usuarios").select("*").order("criado_em");
+    var r = await comTimeout(sb.from("pa_usuarios").select("*").order("criado_em"));
     if (r.error) throw r.error;
     return r.data;
   }
   async function atualizarUsuario(id, campos) {
-    var r = await sb.from("pa_usuarios").update(campos).eq("id", id);
+    var r = await comTimeout(sb.from("pa_usuarios").update(campos).eq("id", id));
     if (r.error) throw r.error;
   }
   // liga/desliga o acesso DE VERDADE ao Gestão de Sacas (tabela usuarios_sacas
@@ -350,9 +407,9 @@
   // direto na tabela — evita depender de RLS avaliar uma subconsulta contra
   // outra tabela pela API REST.
   async function atualizarModuloSacas(id, nome, perfil, ligar) {
-    var r = await sb.from("pa_usuarios").update({ modulo_sacas: ligar }).eq("id", id);
+    var r = await comTimeout(sb.from("pa_usuarios").update({ modulo_sacas: ligar }).eq("id", id));
     if (r.error) throw r.error;
-    var rpc = await sb.rpc("pa_sync_acesso_sacas", { alvo_id: id, alvo_nome: nome, alvo_perfil: perfil, ligar: ligar });
+    var rpc = await comTimeout(sb.rpc("pa_sync_acesso_sacas", { alvo_id: id, alvo_nome: nome, alvo_perfil: perfil, ligar: ligar }));
     if (rpc.error) throw new Error("Módulo salvo, mas não consegui " + (ligar ? "liberar" : "remover") + " o acesso real no Sacas: " + rpc.error.message);
   }
   // tira a pessoa dos dois sistemas (pa_usuarios + usuarios_sacas). A conta de
@@ -361,8 +418,8 @@
   // (Authentication > Users > excluir), não dá pra fazer isso com a chave
   // anon do navegador.
   async function excluirUsuario(id) {
-    await sb.rpc("pa_sync_acesso_sacas", { alvo_id: id, alvo_nome: "", alvo_perfil: "operador", ligar: false });
-    var r = await sb.from("pa_usuarios").delete().eq("id", id);
+    await comTimeout(sb.rpc("pa_sync_acesso_sacas", { alvo_id: id, alvo_nome: "", alvo_perfil: "operador", ligar: false }));
+    var r = await comTimeout(sb.from("pa_usuarios").delete().eq("id", id));
     if (r.error) throw r.error;
   }
 
