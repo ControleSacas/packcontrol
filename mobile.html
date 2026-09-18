@@ -198,6 +198,16 @@ input.mono-input{font-family:"IBM Plex Mono"; letter-spacing:.02em}
 .toast .dot{width:7px;height:7px;border-radius:50%;background:var(--ok)}
 .toast.err .dot{background:var(--danger)}
 
+.offline-banner{
+  position:sticky; top:0; z-index:70; display:flex; align-items:center; gap:8px;
+  background:var(--warn-bg); color:var(--warn); font-size:11.5px; font-weight:600; padding:8px 14px; text-align:left;
+}
+.offline-banner svg{width:15px;height:15px;stroke:currentColor; flex-shrink:0}
+.pending-badge{
+  display:inline-flex; align-items:center; gap:5px; font-size:10.5px; font-weight:600; color:var(--warn);
+  background:var(--warn-bg); padding:4px 8px; border-radius:99px; cursor:pointer; border:none; font-family:inherit; white-space:nowrap;
+}
+
 .search-box{position:relative}
 .search-box svg{position:absolute; left:13px; top:50%; transform:translateY(-50%); width:16px; height:16px; stroke:var(--ink-faint)}
 .search-box input{padding-left:37px}
@@ -294,6 +304,11 @@ input.mono-input{font-family:"IBM Plex Mono"; letter-spacing:.02em}
 
 <div class="app" id="app">
 
+  <div class="offline-banner" id="offline-banner" hidden>
+    <svg viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 1l22 22M8.5 16.5a5 5 0 0 1 7 0M5 12.5a10 10 0 0 1 3.2-2.2M19 12.5a10 10 0 0 0-2-1.7M12 20h.01"/></svg>
+    Offline — ações ficam salvas e sincronizam sozinhas quando a internet voltar.
+  </div>
+
   <!-- LOGIN -->
   <section id="view-login">
     <div class="login-card">
@@ -324,6 +339,7 @@ input.mono-input{font-family:"IBM Plex Mono"; letter-spacing:.02em}
       <div class="brand"><span class="dot"></span> Ponto de Retirada</div>
       <div class="spacer"></div>
       <a href="index.html" class="linklike" style="font-size:11.5px;margin-right:6px">Versão desktop</a>
+      <button class="pending-badge" id="pending-badge-1" type="button" hidden style="margin-right:6px"></button>
       <button class="icon-btn" id="theme-toggle-1" type="button" title="Alternar tema" aria-label="Alternar tema claro/escuro" style="margin-right:6px">
         <svg id="theme-icon-1" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></svg>
       </button>
@@ -343,6 +359,7 @@ input.mono-input{font-family:"IBM Plex Mono"; letter-spacing:.02em}
     <div class="topbar">
       <button class="linklike" id="btn-back-portal" style="font-size:13px">&larr; Módulos</button>
       <div class="spacer"></div>
+      <button class="pending-badge" id="pending-badge-2" type="button" hidden style="margin-right:6px"></button>
       <button class="icon-btn" id="theme-toggle-2" type="button" title="Alternar tema" aria-label="Alternar tema claro/escuro" style="margin-right:6px">
         <svg id="theme-icon-2" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></svg>
       </button>
@@ -648,6 +665,44 @@ function toggleTheme(){
 ["#theme-toggle-1","#theme-toggle-2"].forEach(function(sel){ var b = $(sel); if(b) b.addEventListener("click", toggleTheme) });
 updateThemeIcons();
 
+/* ---------------- offline / sincronização ---------------- */
+function atualizarOfflineUI(){
+  $("#offline-banner").hidden = !PA.estaOffline();
+  var n = PA.contarPendentes();
+  ["#pending-badge-1","#pending-badge-2"].forEach(function(sel){
+    var b = $(sel); if(!b) return;
+    if(n > 0){ b.hidden = false; b.textContent = n + " pendente" + (n===1?"":"s"); }
+    else b.hidden = true;
+  });
+}
+window.addEventListener("online", atualizarOfflineUI);
+window.addEventListener("offline", atualizarOfflineUI);
+window.addEventListener("pa:sync", async function(e){
+  atualizarOfflineUI();
+  var d = e.detail || {};
+  if(d.ok || d.falhou){
+    toast(d.ok + " ação(ões) sincronizada(s)" + (d.falhou ? ", " + d.falhou + " falhou(aram)" : "") + ".", !!d.falhou);
+  }
+  if(state.sessao && !$("#view-app").hidden){ await renderApp(); }
+});
+["#pending-badge-1","#pending-badge-2"].forEach(function(sel){
+  var b = $(sel); if(!b) return;
+  b.addEventListener("click", async function(){
+    if(PA.estaOffline()){ toast("Ainda sem internet — sincroniza sozinho assim que voltar.", true); return; }
+    b.disabled = true;
+    var res = await PA.sincronizarFila();
+    b.disabled = false;
+    atualizarOfflineUI();
+    toast(res.ok + " ação(ões) sincronizada(s)" + (res.falhou ? ", " + res.falhou + " falhou(aram)" : "") + ".", !!res.falhou);
+    if(state.sessao && !$("#view-app").hidden) await renderApp();
+  });
+});
+atualizarOfflineUI();
+
+if("serviceWorker" in navigator){
+  navigator.serviceWorker.register("sw.js").catch(function(){});
+}
+
 /* ---------------- modal (aguardando / localização) ---------------- */
 function abrirModal(titulo){
   $("#modal-title").textContent = titulo;
@@ -673,8 +728,11 @@ function montarTransferControl(p, onDone){
     var novo = sel.value; if(!novo) return;
     btn.disabled = true;
     try{
-      await PA.transferirPacote(p.id, novo);
-      toast("Pacote " + p.codigo + " movido para " + novo + ".");
+      var r = await PA.transferirPacote(p.id, novo);
+      toast(r && r._pendente
+        ? "Sem internet — transferência salva, sincroniza quando voltar."
+        : "Pacote " + p.codigo + " movido para " + novo + ".");
+      atualizarOfflineUI();
       if(onDone) await onDone();
     }catch(e){ toast(erroMsg(e), true); btn.disabled = false; }
   });
@@ -905,8 +963,11 @@ async function renderCadastrar(){
         } else {
           toast("Escolha uma localização.", true); btn.disabled = false; return;
         }
-        await PA.cadastrarPacote(codigo, local, state.sessao.perfil.nome);
-        toast("Pacote " + codigo + " cadastrado em " + local + ".");
+        var rc = await PA.cadastrarPacote(codigo, local, state.sessao.perfil.nome);
+        toast(rc && rc._pendente
+          ? "Sem internet — pacote " + codigo + " salvo aqui, sincroniza quando voltar."
+          : "Pacote " + codigo + " cadastrado em " + local + ".");
+        atualizarOfflineUI();
         form.reset();
         $("#campo-nova-local").hidden = true;
         state.novoPacoteLocal = local;
@@ -1004,8 +1065,11 @@ function mostrarPacote(p){
     if(vencido && !confirm("Pacote vencido (" + dias + " dias parado) — entregar assim mesmo?")) return;
     btn.disabled = true;
     try{
-      await PA.entregarPacote(p.id, state.sessao.perfil.nome);
-      toast("Pacote com ID " + p.codigo + " foi entregue!");
+      var re = await PA.entregarPacote(p.id, state.sessao.perfil.nome);
+      toast(re && re._pendente
+        ? "Sem internet — entrega de " + p.codigo + " salva, sincroniza quando voltar."
+        : "Pacote com ID " + p.codigo + " foi entregue!");
+      atualizarOfflineUI();
       box.hidden = true;
       $("#in-busca").value = "";
       $("#in-busca").focus();
@@ -1104,8 +1168,11 @@ async function renderVencidos(){
         if(!confirm("Marcar o pacote " + x.p.codigo + " como devolvido?")) return;
         devBtn.disabled = true;
         try{
-          await PA.devolverPacote(x.p.id, state.sessao.perfil.nome);
-          toast("Pacote " + x.p.codigo + " marcado como devolvido.");
+          var rd = await PA.devolverPacote(x.p.id, state.sessao.perfil.nome);
+          toast(rd && rd._pendente
+            ? "Sem internet — devolução de " + x.p.codigo + " salva, sincroniza quando voltar."
+            : "Pacote " + x.p.codigo + " marcado como devolvido.");
+          atualizarOfflineUI();
           estoqueCache = null;
           await atualizar();
         }catch(err){ toast(erroMsg(err), true); devBtn.disabled = false; }

@@ -27,6 +27,91 @@
     return all;
   }
 
+  /* ============================================================
+     OFFLINE: cache local (último snapshot lido) + fila de ações
+     pendentes (cadastrar/entregar/devolver/transferir feitos sem
+     internet). Combinado só funciona bem com UMA pessoa offline por
+     vez — se duas pessoas cadastrarem/mexerem no mesmo pacote offline
+     ao mesmo tempo, a sincronização não tenta resolver esse conflito.
+     ============================================================ */
+  function lsGet(key, def) {
+    try { var v = localStorage.getItem("pa_" + key); return v ? JSON.parse(v) : def; } catch (e) { return def; }
+  }
+  function lsSet(key, val) {
+    try { localStorage.setItem("pa_" + key, JSON.stringify(val)); } catch (e) {}
+  }
+  function estaOffline() { return typeof navigator !== "undefined" && navigator.onLine === false; }
+
+  function filaGet() { return lsGet("fila_pendente", []); }
+  function filaSet(f) { lsSet("fila_pendente", f); }
+  function filaAdd(tipo, payload) {
+    var f = filaGet();
+    var acao = { id: "q" + Date.now() + "_" + Math.random().toString(36).slice(2), tipo: tipo, payload: payload, criadoEm: new Date().toISOString() };
+    f.push(acao);
+    filaSet(f);
+    return acao;
+  }
+  function contarPendentes() { return filaGet().length; }
+
+  function cacheEstoqueGet() { return lsGet("cache_estoque", []); }
+  function cacheEstoqueSet(l) { lsSet("cache_estoque", l); }
+  function cacheLocaisGet() { return lsGet("cache_locais", []); }
+  function cacheLocaisSet(l) { lsSet("cache_locais", l); }
+
+  // aplica as ações ainda não sincronizadas em cima do último snapshot
+  // conhecido, pra tela offline mostrar o estado real (com o que já foi
+  // feito localmente, mesmo sem ainda ter ido pro banco).
+  function estoqueComFila() {
+    var lista = cacheEstoqueGet().slice();
+    filaGet().forEach(function (a) {
+      if (a.tipo === "cadastrar") {
+        lista.push({
+          id: "pendente_" + a.id, codigo: a.payload.codigo, local: a.payload.local, status: "estoque",
+          cadastrado_por: a.payload.cadastradoPor, cadastrado_em: a.criadoEm,
+          entregue_por: null, entregue_em: null, devolvido_por: null, devolvido_em: null, _pendente: true
+        });
+      } else if (a.tipo === "entregar" || a.tipo === "devolver") {
+        lista = lista.filter(function (p) { return p.id !== a.payload.id; });
+      } else if (a.tipo === "transferir") {
+        lista = lista.map(function (p) { return p.id === a.payload.id ? Object.assign({}, p, { local: a.payload.novoLocal }) : p; });
+      }
+    });
+    return lista;
+  }
+
+  function isNetworkError(e) {
+    return estaOffline() || (e && (e.name === "TypeError" || /fetch|network|failed to fetch/i.test(String(e.message || ""))));
+  }
+
+  // roda a fila pendente contra o Supabase de verdade, em ordem — chamada
+  // automaticamente quando a conexão volta, ou manualmente pela tela.
+  var sincronizando = false;
+  async function sincronizarFila() {
+    if (sincronizando || estaOffline()) return { ok: 0, falhou: 0 };
+    sincronizando = true;
+    var fila = filaGet();
+    var restante = [];
+    var ok = 0, falhou = 0;
+    for (var i = 0; i < fila.length; i++) {
+      var a = fila[i];
+      try {
+        if (a.tipo === "cadastrar") await cadastrarPacoteOnline(a.payload.codigo, a.payload.local, a.payload.cadastradoPor);
+        else if (a.tipo === "entregar") await entregarPacoteOnline(a.payload.id, a.payload.entreguePor);
+        else if (a.tipo === "devolver") await devolverPacoteOnline(a.payload.id, a.payload.devolvidoPor);
+        else if (a.tipo === "transferir") await transferirPacoteOnline(a.payload.id, a.payload.novoLocal);
+        ok++;
+      } catch (e) {
+        a.erro = (e && e.message) || "Falhou ao sincronizar";
+        restante.push(a);
+        falhou++;
+      }
+    }
+    filaSet(restante);
+    if (ok > 0) { try { cacheEstoqueSet(await fetchAll(function (a2, b2) { return sb.from("pa_pacotes").select("*").eq("status", "estoque").range(a2, b2); })); } catch (e) {} }
+    sincronizando = false;
+    return { ok: ok, falhou: falhou };
+  }
+
   async function carregarPerfil(authUser) {
     var r = await sb.from("pa_usuarios").select("*").eq("id", authUser.id).maybeSingle();
     if (r.error) throw r.error;
@@ -51,9 +136,16 @@
 
   /* ---------- localizações ---------- */
   async function listarLocalizacoes() {
-    var r = await sb.from("pa_localizacoes").select("*").order("codigo");
-    if (r.error) throw r.error;
-    return r.data;
+    if (estaOffline()) return cacheLocaisGet();
+    try {
+      var r = await sb.from("pa_localizacoes").select("*").order("codigo");
+      if (r.error) throw r.error;
+      cacheLocaisSet(r.data);
+      return r.data;
+    } catch (e) {
+      if (isNetworkError(e)) return cacheLocaisGet();
+      throw e;
+    }
   }
   async function criarLocalizacao(codigo, cor) {
     var r = await sb.from("pa_localizacoes").insert({ codigo: codigo, cor: cor }).select().single();
@@ -77,9 +169,17 @@
 
   /* ---------- pacotes ---------- */
   async function listarEstoque() {
-    return fetchAll(function (a, b) {
-      return sb.from("pa_pacotes").select("*").eq("status", "estoque").range(a, b);
-    });
+    if (estaOffline()) return estoqueComFila();
+    try {
+      var dados = await fetchAll(function (a, b) {
+        return sb.from("pa_pacotes").select("*").eq("status", "estoque").range(a, b);
+      });
+      cacheEstoqueSet(dados);
+      return filaGet().length ? estoqueComFila() : dados;
+    } catch (e) {
+      if (isNetworkError(e)) return estoqueComFila();
+      throw e;
+    }
   }
   async function listarHistorico(filtroCodigo, statusFiltro) {
     var status = statusFiltro || "entregue";
@@ -90,7 +190,7 @@
     if (r.error) throw r.error;
     return r.data;
   }
-  async function cadastrarPacote(codigo, local, cadastradoPor) {
+  async function cadastrarPacoteOnline(codigo, local, cadastradoPor) {
     var r = await sb.from("pa_pacotes").insert({ codigo: codigo, local: local, cadastrado_por: cadastradoPor }).select().single();
     if (r.error) {
       if (r.error.code === "23505") throw new Error("Já existe um pacote cadastrado com esse código.");
@@ -98,7 +198,28 @@
     }
     return r.data;
   }
+  function codigoJaExisteLocal(codigo) {
+    return estoqueComFila().some(function (p) { return p.codigo === codigo; });
+  }
+  async function cadastrarPacote(codigo, local, cadastradoPor) {
+    if (estaOffline()) {
+      if (codigoJaExisteLocal(codigo)) throw new Error("Já existe um pacote cadastrado com esse código.");
+      filaAdd("cadastrar", { codigo: codigo, local: local, cadastradoPor: cadastradoPor });
+      return { codigo: codigo, local: local, _pendente: true };
+    }
+    try {
+      return await cadastrarPacoteOnline(codigo, local, cadastradoPor);
+    } catch (e) {
+      if (isNetworkError(e)) {
+        if (codigoJaExisteLocal(codigo)) throw new Error("Já existe um pacote cadastrado com esse código.");
+        filaAdd("cadastrar", { codigo: codigo, local: local, cadastradoPor: cadastradoPor });
+        return { codigo: codigo, local: local, _pendente: true };
+      }
+      throw e;
+    }
+  }
   async function cadastrarEmMassaComLocais(linhas, cadastradoPor) {
+    if (estaOffline()) throw new Error("Cadastro em massa (planilha) precisa de internet.");
     var existentes = await listarLocalizacoes();
     var jaTem = {};
     existentes.forEach(function (l) { jaTem[l.codigo.toLowerCase()] = true; });
@@ -117,22 +238,55 @@
     }
     return { inseridos: inseridos, novasLocs: novasLocs.length, duplicados: duplicados };
   }
-  async function entregarPacote(id, entreguePor) {
+  async function entregarPacoteOnline(id, entreguePor) {
     var r = await sb.from("pa_pacotes").update({ status: "entregue", entregue_por: entreguePor, entregue_em: new Date().toISOString() }).eq("id", id);
     if (r.error) throw r.error;
   }
-  async function devolverPacote(id, devolvidoPor) {
+  async function entregarPacote(id, entreguePor) {
+    if (String(id).indexOf("pendente_") === 0) throw new Error("Esse pacote ainda não terminou de sincronizar — tenta de novo em instantes.");
+    if (estaOffline()) { filaAdd("entregar", { id: id, entreguePor: entreguePor }); return { _pendente: true }; }
+    try { await entregarPacoteOnline(id, entreguePor); return { _pendente: false }; }
+    catch (e) {
+      if (isNetworkError(e)) { filaAdd("entregar", { id: id, entreguePor: entreguePor }); return { _pendente: true }; }
+      throw e;
+    }
+  }
+  async function devolverPacoteOnline(id, devolvidoPor) {
     var r = await sb.from("pa_pacotes").update({ status: "devolvido", devolvido_por: devolvidoPor, devolvido_em: new Date().toISOString() }).eq("id", id);
     if (r.error) throw r.error;
   }
-  async function transferirPacote(id, novoLocal) {
+  async function devolverPacote(id, devolvidoPor) {
+    if (String(id).indexOf("pendente_") === 0) throw new Error("Esse pacote ainda não terminou de sincronizar — tenta de novo em instantes.");
+    if (estaOffline()) { filaAdd("devolver", { id: id, devolvidoPor: devolvidoPor }); return { _pendente: true }; }
+    try { await devolverPacoteOnline(id, devolvidoPor); return { _pendente: false }; }
+    catch (e) {
+      if (isNetworkError(e)) { filaAdd("devolver", { id: id, devolvidoPor: devolvidoPor }); return { _pendente: true }; }
+      throw e;
+    }
+  }
+  async function transferirPacoteOnline(id, novoLocal) {
     var r = await sb.from("pa_pacotes").update({ local: novoLocal }).eq("id", id);
     if (r.error) throw r.error;
   }
+  async function transferirPacote(id, novoLocal) {
+    if (String(id).indexOf("pendente_") === 0) throw new Error("Esse pacote ainda não terminou de sincronizar — tenta de novo em instantes.");
+    if (estaOffline()) { filaAdd("transferir", { id: id, novoLocal: novoLocal }); return { _pendente: true }; }
+    try { await transferirPacoteOnline(id, novoLocal); return { _pendente: false }; }
+    catch (e) {
+      if (isNetworkError(e)) { filaAdd("transferir", { id: id, novoLocal: novoLocal }); return { _pendente: true }; }
+      throw e;
+    }
+  }
   async function buscarPorCodigo(q) {
-    var r = await sb.from("pa_pacotes").select("*").eq("status", "estoque").ilike("codigo", "%" + q + "%").order("cadastrado_em", { ascending: false }).limit(8);
-    if (r.error) throw r.error;
-    return r.data;
+    if (estaOffline()) return estoqueComFila().filter(function (p) { return p.codigo.indexOf(q) !== -1; }).slice(0, 8);
+    try {
+      var r = await sb.from("pa_pacotes").select("*").eq("status", "estoque").ilike("codigo", "%" + q + "%").order("cadastrado_em", { ascending: false }).limit(8);
+      if (r.error) throw r.error;
+      return r.data;
+    } catch (e) {
+      if (isNetworkError(e)) return estoqueComFila().filter(function (p) { return p.codigo.indexOf(q) !== -1; }).slice(0, 8);
+      throw e;
+    }
   }
 
   /* ---------- relatório ---------- */
@@ -212,6 +366,17 @@
     if (r.error) throw r.error;
   }
 
+  // sincroniza sozinho assim que a conexão volta, e avisa a tela (evento
+  // "pa:sync") pra atualizar as listas e mostrar quantas ações foram
+  // sincronizadas.
+  if (typeof window !== "undefined") {
+    window.addEventListener("online", function () {
+      sincronizarFila().then(function (res) {
+        window.dispatchEvent(new CustomEvent("pa:sync", { detail: res }));
+      });
+    });
+  }
+
   window.PA = {
     SHELF_COLORS: SHELF_COLORS,
     login: login, logout: logout, getSessaoAtual: getSessaoAtual,
@@ -222,6 +387,7 @@
     entregarPacote: entregarPacote, devolverPacote: devolverPacote, transferirPacote: transferirPacote, buscarPorCodigo: buscarPorCodigo,
     relatorioPeriodo: relatorioPeriodo,
     listarUsuarios: listarUsuarios, atualizarUsuario: atualizarUsuario, criarUsuarioLogin: criarUsuarioLogin,
-    atualizarModuloSacas: atualizarModuloSacas, excluirUsuario: excluirUsuario
+    atualizarModuloSacas: atualizarModuloSacas, excluirUsuario: excluirUsuario,
+    estaOffline: estaOffline, contarPendentes: contarPendentes, sincronizarFila: sincronizarFila
   };
 })();
