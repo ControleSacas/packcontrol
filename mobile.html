@@ -628,6 +628,7 @@ function limparCampoCodigo(input){
     var limpo = extrairCodigo11(input.value);
     if(limpo) input.value = limpo;
   }
+  if(input.value.length > 11) input.value = input.value.slice(0,11);
 }
 function show(id){ $all(".app > section").forEach(function(s){ s.hidden = (s.id !== id) }) }
 
@@ -1007,6 +1008,7 @@ function mostrarPacote(p){
       toast("Pacote com ID " + p.codigo + " foi entregue!");
       box.hidden = true;
       $("#in-busca").value = "";
+      $("#in-busca").focus();
     }catch(err){ toast(erroMsg(err), true); btn.disabled = false; }
   });
   box.appendChild(btn);
