@@ -912,15 +912,18 @@ var LIMITE_VENCIDO_DIAS = 5;
 
 async function renderApp(){
   whoBadge("#who-badge-app");
-  try{ state.locais = await PA.listarLocalizacoes(); }
-  catch(e){ toast(erroMsg(e), true); state.locais = state.locais || []; }
-  // troca a aba sempre, mesmo se algo acima falhou — nunca deixa a tela
-  // presa na aba antiga.
+  // troca a aba e mostra o painel já aqui, antes de qualquer await — no
+  // Safari/iOS um .focus() chamado depois de um await perde a permissão
+  // do toque/clique real do usuário e simplesmente não funciona.
   $all("#app-nav button").forEach(function(b){ b.classList.toggle("on", b.dataset.view===state.appView) });
   $("#crumb-view").textContent = NAV_LABELS[state.appView];
   ["painel","cadastrar","entregar","locais","vencidos","historico","relatorio"].forEach(function(v){
     $("#pv-"+v).hidden = (v !== state.appView);
   });
+  if(state.appView==="cadastrar" && $("#in-codigo")) $("#in-codigo").focus();
+
+  try{ state.locais = await PA.listarLocalizacoes(); }
+  catch(e){ toast(erroMsg(e), true); state.locais = state.locais || []; }
   try{
     if(state.appView==="painel") await renderPainel();
     if(state.appView==="cadastrar") await renderCadastrar();
@@ -993,7 +996,7 @@ function refreshLocTiles(){
   ativas.forEach(function(l){
     var on = state.novoPacoteLocal===l.codigo;
     var t = el("button",{type:"button", class:"loc-tile"+(on?" on":""), style:"--tilecolor:"+l.cor},[el("span",{text:l.codigo})]);
-    t.addEventListener("click", function(){ state.novoPacoteLocal = l.codigo; $("#campo-nova-local").hidden = true; refreshLocTiles(); });
+    t.addEventListener("click", function(){ state.novoPacoteLocal = l.codigo; $("#campo-nova-local").hidden = true; refreshLocTiles(); $("#in-codigo").focus(); });
     wrap.appendChild(t);
   });
   var addT = el("button",{type:"button", class:"loc-tile add"},[el("span",{text:"+ Nova"})]);
@@ -1010,7 +1013,17 @@ async function renderCadastrar(){
   var form = $("#form-cadastro");
   if(!form._wired){
     form._wired = true;
-    $("#in-codigo").addEventListener("input", function(){ limparCampoCodigo($("#in-codigo")) });
+    $("#in-codigo").addEventListener("input", function(){
+      var campo = $("#in-codigo");
+      limparCampoCodigo(campo);
+      // envia sozinho assim que os 11 dígitos completarem — não depende do
+      // Enter do leitor chegar a disparar o submit nativo, que em vários
+      // Android/teclados não funciona igual ao PC.
+      if(/^\d{11}$/.test(campo.value)){
+        if(form.requestSubmit) form.requestSubmit();
+        else form.dispatchEvent(new Event("submit", {cancelable:true, bubbles:true}));
+      }
+    });
     form.addEventListener("submit", async function(e){
       e.preventDefault();
       var codigo = extrairCodigo11($("#in-codigo").value);
@@ -1074,6 +1087,7 @@ async function renderCadastrar(){
       reader.readAsArrayBuffer(f);
     });
   }
+  $("#in-codigo").focus();
 }
 
 async function renderLocais(){
