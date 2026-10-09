@@ -1328,7 +1328,8 @@ async function renderUsersList(){
     var card = el("div",{class:"user-card"});
     var top = el("div",{class:"top"});
     top.appendChild(el("div",{class:"avatar", text:initials(u.nome)}));
-    top.appendChild(el("div",{class:"nome", text:u.nome}));
+    var nomeEl = el("div",{class:"nome", text:u.nome});
+    top.appendChild(nomeEl);
     var perfilBtn = el("button",{type:"button", class:"role-pill "+(u.perfil==="gestor"?"role-gestor":"role-func"), text:(u.perfil==="gestor"?"Gestor":"Operador")});
     perfilBtn.addEventListener("click", async function(){
       var novo = u.perfil==="gestor" ? "operador" : "gestor";
@@ -1365,7 +1366,27 @@ async function renderUsersList(){
     });
     card.appendChild(modRow);
 
-    var delWrap = el("div",{style:"margin-top:10px;text-align:right"});
+    var delWrap = el("div",{style:"margin-top:10px;display:flex;justify-content:flex-end;gap:16px"});
+    var editBtn = el("button",{type:"button", class:"linklike", text:"Editar"});
+    editBtn.addEventListener("click", function(){
+      // troca o nome por um campo de texto, com Salvar / Cancelar no lugar dos botões
+      var inp = el("input",{type:"text", value:u.nome, style:"flex:1;min-width:0;padding:7px 10px;font-size:15px"});
+      nomeEl.replaceWith(inp);
+      var botoes = delWrap.cloneNode(false);
+      var cancelar = el("button",{type:"button", class:"linklike", text:"Cancelar"});
+      var salvar = el("button",{type:"button", class:"linklike", text:"Salvar"});
+      cancelar.addEventListener("click", function(){ renderUsersList(); });
+      salvar.addEventListener("click", async function(){
+        salvar.disabled = true;
+        try{ await PA.renomearUsuario(u, inp.value); toast("Nome atualizado."); await renderUsersList(); }
+        catch(err){ toast(erroMsg(err), true); salvar.disabled = false; }
+      });
+      inp.addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); salvar.click(); } });
+      botoes.appendChild(cancelar); botoes.appendChild(salvar);
+      delWrap.replaceWith(botoes);
+      inp.focus(); inp.select();
+    });
+    delWrap.appendChild(editBtn);
     var delBtn = el("button",{type:"button", class:"linklike", text:"Excluir usuário"});
     if(u.id === state.sessao.perfil.id){
       delBtn.disabled = true; delBtn.title = "Não dá pra excluir o seu próprio usuário";

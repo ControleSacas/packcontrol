@@ -412,6 +412,19 @@
     var r = await comTimeout(sb.from("pa_usuarios").update(campos).eq("id", id));
     if (r.error) throw r.error;
   }
+  // troca o nome de exibição. Se a pessoa tem acesso ao Sacas, o nome lá
+  // (usuarios_sacas) é atualizado junto, pela mesma função RPC dos módulos.
+  // O login (usuário/senha) não muda — isso só dá pra mexer no Supabase.
+  async function renomearUsuario(u, novoNome) {
+    novoNome = (novoNome || "").trim();
+    if (!novoNome) throw new Error("Informe o nome.");
+    var r = await comTimeout(sb.from("pa_usuarios").update({ nome: novoNome }).eq("id", u.id));
+    if (r.error) throw r.error;
+    if (u.modulo_sacas) {
+      var rpc = await comTimeout(sb.rpc("pa_sync_acesso_sacas", { alvo_id: u.id, alvo_nome: novoNome, alvo_perfil: u.perfil, ligar: true }));
+      if (rpc.error) throw new Error("Nome salvo aqui, mas não consegui atualizar no Gestão de Sacas: " + rpc.error.message);
+    }
+  }
   // liga/desliga o acesso DE VERDADE ao Gestão de Sacas (tabela usuarios_sacas
   // dele, não só o flag local) — mesma conta de login, então funciona com o
   // mesmo usuário/senha assim que essa linha existir. A escrita em si roda
@@ -455,7 +468,7 @@
     cadastrarPacote: cadastrarPacote, desfazerCadastro: desfazerCadastro, cadastrarEmMassaComLocais: cadastrarEmMassaComLocais,
     entregarPacote: entregarPacote, devolverPacote: devolverPacote, transferirPacote: transferirPacote, buscarPorCodigo: buscarPorCodigo,
     relatorioPeriodo: relatorioPeriodo,
-    listarUsuarios: listarUsuarios, atualizarUsuario: atualizarUsuario, criarUsuarioLogin: criarUsuarioLogin,
+    listarUsuarios: listarUsuarios, atualizarUsuario: atualizarUsuario, renomearUsuario: renomearUsuario, criarUsuarioLogin: criarUsuarioLogin,
     atualizarModuloSacas: atualizarModuloSacas, excluirUsuario: excluirUsuario,
     estaOffline: estaOffline, contarPendentes: contarPendentes, sincronizarFila: sincronizarFila
   };

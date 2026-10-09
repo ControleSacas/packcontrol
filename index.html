@@ -1402,7 +1402,8 @@ async function renderUsers(){
   tb.innerHTML = "";
   usuarios.forEach(function(u){
     var tr = el("tr");
-    tr.appendChild(el("td",{html:'<div style="display:flex;align-items:center;gap:8px"><span class="avatar" style="width:24px;height:24px;border-radius:50%;background:var(--accent);color:var(--accent-ink);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600">'+initials(u.nome)+'</span>'+u.nome+'</div>'}));
+    var tdNome = el("td",{html:'<div style="display:flex;align-items:center;gap:8px"><span class="avatar" style="width:24px;height:24px;border-radius:50%;background:var(--accent);color:var(--accent-ink);display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:600">'+initials(u.nome)+'</span>'+u.nome+'</div>'});
+    tr.appendChild(tdNome);
 
     var tdPerfil = el("td");
     var perfilBtn = el("button",{type:"button", class:"role-pill "+(u.perfil==="gestor"?"role-gestor":"role-func"), text:(u.perfil==="gestor"?"Gestor":"Operador")});
@@ -1444,6 +1445,25 @@ async function renderUsers(){
     tr.appendChild(modCell);
 
     var tdDel = el("td");
+    var editBtn = el("button",{type:"button", class:"linklike", text:"Editar", style:"margin-right:14px"});
+    editBtn.addEventListener("click", function(){
+      // troca o nome por um campo de texto, com Salvar / Cancelar no lugar dos botões
+      var inp = el("input",{type:"text", value:u.nome, style:"width:100%;min-width:140px;padding:6px 9px;font-size:14px"});
+      tdNome.innerHTML = ""; tdNome.appendChild(inp);
+      tdDel.innerHTML = "";
+      var cancelar = el("button",{type:"button", class:"linklike", text:"Cancelar", style:"margin-right:14px"});
+      var salvar = el("button",{type:"button", class:"linklike", text:"Salvar"});
+      cancelar.addEventListener("click", function(){ renderUsers(); });
+      salvar.addEventListener("click", async function(){
+        salvar.disabled = true;
+        try{ await PA.renomearUsuario(u, inp.value); toast("Nome atualizado."); await renderUsers(); }
+        catch(err){ toast(erroMsg(err), true); salvar.disabled = false; }
+      });
+      inp.addEventListener("keydown", function(e){ if(e.key==="Enter"){ e.preventDefault(); salvar.click(); } });
+      tdDel.appendChild(cancelar); tdDel.appendChild(salvar);
+      inp.focus(); inp.select();
+    });
+    tdDel.appendChild(editBtn);
     var delBtn = el("button",{type:"button", class:"linklike", text:"Excluir"});
     if(u.id === state.sessao.perfil.id){
       delBtn.disabled = true; delBtn.title = "Não dá pra excluir o seu próprio usuário";
