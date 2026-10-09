@@ -255,6 +255,18 @@
     }
     return r.data;
   }
+  // desfaz um cadastro que acabou de ser feito (botão "Desfazer" depois de bipar).
+  // Se ainda estava na fila offline, só tira da fila; se já foi pro banco, apaga
+  // a linha (só enquanto ainda está em estoque).
+  async function desfazerCadastro(rc) {
+    if (rc && rc._pendente) {
+      filaSet(filaGet().filter(function (a) { return !(a.tipo === "cadastrar" && a.payload && a.payload.codigo === rc.codigo); }));
+      return;
+    }
+    if (!rc || !rc.id) throw new Error("Não achei esse cadastro pra desfazer.");
+    var r = await comTimeout(sb.from("pa_pacotes").delete().eq("id", rc.id).eq("status", "estoque"));
+    if (r.error) throw r.error;
+  }
   function codigoJaExisteLocal(codigo) {
     return estoqueComFila().some(function (p) { return p.codigo === codigo; });
   }
@@ -440,7 +452,7 @@
     listarLocalizacoes: listarLocalizacoes, criarLocalizacao: criarLocalizacao,
     alternarLocalizacao: alternarLocalizacao, excluirLocalizacao: excluirLocalizacao,
     listarEstoque: listarEstoque, listarHistorico: listarHistorico,
-    cadastrarPacote: cadastrarPacote, cadastrarEmMassaComLocais: cadastrarEmMassaComLocais,
+    cadastrarPacote: cadastrarPacote, desfazerCadastro: desfazerCadastro, cadastrarEmMassaComLocais: cadastrarEmMassaComLocais,
     entregarPacote: entregarPacote, devolverPacote: devolverPacote, transferirPacote: transferirPacote, buscarPorCodigo: buscarPorCodigo,
     relatorioPeriodo: relatorioPeriodo,
     listarUsuarios: listarUsuarios, atualizarUsuario: atualizarUsuario, criarUsuarioLogin: criarUsuarioLogin,

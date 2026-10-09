@@ -33,7 +33,7 @@
     ".pa-codebox.pa-has .pa-ibtn.pa-erase{display:flex}" +
     ".pa-ibtn.pa-camb{display:none; color:var(--accent)}" +
     ".pa-codebox.pa-cam .pa-ibtn.pa-camb{display:flex}" +
-    ".pa-pill{all:unset; box-sizing:border-box; position:fixed; right:14px; bottom:14px; z-index:45; display:none; align-items:center; gap:8px;" +
+    ".pa-pill{all:unset; box-sizing:border-box; position:fixed; right:14px; bottom:calc(16px + env(safe-area-inset-bottom,0px)); z-index:45; display:none; align-items:center; gap:8px;" +
     " padding:9px 14px 9px 11px; border-radius:999px; font:600 13px/1 'IBM Plex Sans',system-ui,sans-serif; cursor:pointer;" +
     " background:var(--surface); color:var(--ink); border:1px solid var(--line-strong); box-shadow:var(--shadow); -webkit-tap-highlight-color:transparent}" +
     ".pa-pill.show{display:inline-flex}" +
@@ -112,6 +112,9 @@
       b.box.classList.toggle("pa-cam", modo === "camera");
       if (b.inp.offsetParent !== null) algumVisivel = true;
     });
+    // aparece em qualquer tela depois do login (não só onde tem campo de código)
+    var app = document.getElementById("view-app");
+    if (app && !app.hidden) algumVisivel = true;
     pill.classList.toggle("show", algumVisivel);
   }
 
@@ -223,7 +226,45 @@
   ov.addEventListener("click", function (e) { if (e.target === ov) fecharCamera(); });
   ov.querySelector("#pa-cam-close").addEventListener("click", fecharCamera);
 
+  /* ---------- aviso com "Desfazer" (usado depois de cadastrar um pacote) ---------- */
+  var undoCss = document.createElement("style");
+  undoCss.textContent =
+    ".pa-undo{position:fixed; left:50%; transform:translateX(-50%); z-index:62; display:none; align-items:center; gap:12px;" +
+    " max-width:90vw; padding:7px 7px 7px 16px; border-radius:99px; background:var(--ink); color:var(--bg);" +
+    " font:500 12.5px/1.3 'IBM Plex Sans',system-ui,sans-serif; box-shadow:var(--shadow)}" +
+    ".pa-undo.show{display:flex}" +
+    ".pa-undo button{all:unset; box-sizing:border-box; cursor:pointer; flex-shrink:0; padding:8px 14px; border-radius:99px;" +
+    " background:var(--accent); color:var(--accent-ink); font:700 12.5px/1 'IBM Plex Sans',system-ui,sans-serif}";
+  document.head.appendChild(undoCss);
+
+  var undoEl = document.createElement("div");
+  undoEl.className = "pa-undo";
+  undoEl.innerHTML = '<span class="pa-undo-t"></span><button type="button">Desfazer</button>';
+  var undoTimer = null, undoFn = null;
+
+  function esconderUndo() { clearTimeout(undoTimer); undoFn = null; undoEl.classList.remove("show"); }
+  undoEl.querySelector("button").addEventListener("click", function () {
+    var fn = undoFn;
+    esconderUndo();
+    if (fn) fn();
+  });
+
+  // Mostra a mensagem com o botão Desfazer na mesma posição do aviso normal do app.
+  // Só o último cadastro fica desfazível (um novo bipe substitui o anterior).
+  window.PA_UI = {
+    desfazer: function (texto, aoDesfazer, ms) {
+      var t = document.getElementById("toast");
+      undoEl.style.bottom = t ? getComputedStyle(t).bottom : "78px";
+      undoEl.querySelector(".pa-undo-t").textContent = texto;
+      undoFn = aoDesfazer;
+      undoEl.classList.add("show");
+      clearTimeout(undoTimer);
+      undoTimer = setTimeout(esconderUndo, ms || 7000);
+    }
+  };
+
   /* ---------- start ---------- */
+  document.body.appendChild(undoEl);
   IDS.forEach(function (id) { montar(document.getElementById(id)); });
   if (document.getElementById("tabbar")) document.body.classList.add("pa-has-tabbar");
   document.body.appendChild(pill);

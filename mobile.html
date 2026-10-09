@@ -986,9 +986,18 @@ async function renderCadastrar(){
           toast("Escolha uma localização.", true); btn.disabled = false; return;
         }
         var rc = await PA.cadastrarPacote(codigo, local, state.sessao.perfil.nome);
-        toast(rc && rc._pendente
+        var msgOk = rc && rc._pendente
           ? "Sem internet — pacote " + codigo + " salvo aqui, sincroniza quando voltar."
-          : "Pacote " + codigo + " cadastrado em " + local + ".");
+          : "Pacote " + codigo + " cadastrado em " + local + ".";
+        if(window.PA_UI && PA_UI.desfazer){
+          PA_UI.desfazer(msgOk, async function(){
+            try{
+              await PA.desfazerCadastro(rc);
+              atualizarOfflineUI();
+              toast("Cadastro do pacote " + codigo + " desfeito.");
+            }catch(e){ toast(erroMsg(e), true); }
+          });
+        } else toast(msgOk);
         atualizarOfflineUI();
         form.reset();
         $("#campo-nova-local").hidden = true;
