@@ -91,6 +91,30 @@
 
     btns.appendChild(cam); btns.appendChild(er);
     box.appendChild(btns);
+
+    // Leitor "digita" os caracteres quase de uma vez (poucos ms entre um e outro);
+    // gente digitando leva bem mais. Se o campo já tinha um número sobrando e chega
+    // uma rajada rápida, é leitura nova: descarta o que sobrou, senão os dígitos se
+    // misturam e o código sai errado. Fica na fase de captura do box pra rodar ANTES
+    // dos handlers do app (que cortam em 11 dígitos e enviam sozinhos).
+    var rajada = { t: 0, n: 0, base: "" };
+    box.addEventListener("input", function (e) {
+      if (e.target !== inp) return;
+      var agora = (window.performance && performance.now) ? performance.now() : Date.now();
+      var gap = agora - rajada.t; rajada.t = agora;
+      var dado = e.data || "";
+      if (e.inputType !== "insertText" || !dado) { rajada.n = 0; return; }
+      var cur = inp.value;
+      if (gap >= 70) {
+        rajada.n = 1;
+        rajada.base = cur.slice(-dado.length) === dado ? cur.slice(0, cur.length - dado.length) : "";
+      } else {
+        rajada.n++;
+      }
+      if (rajada.n === 2 && rajada.base && cur.indexOf(rajada.base) === 0) {
+        inp.value = cur.slice(rajada.base.length);
+      }
+    }, true);
     inp.addEventListener("input", atualizar);
     inp.addEventListener("change", atualizar);
 
