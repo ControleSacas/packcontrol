@@ -742,12 +742,16 @@ document.addEventListener("keydown", function(e){ if(e.key==="Escape") fecharMod
 function montarTransferControl(p, onDone){
   var wrap = el("span",{class:"inline-transfer"});
   var sel = el("select");
-  state.locais.filter(function(l){return l.ativa && l.codigo!==p.local}).forEach(function(l){
-    sel.appendChild(el("option",{value:l.codigo, text:l.codigo}));
-  });
-  if(!sel.children.length){ sel.appendChild(el("option",{value:"", text:"— sem outra ativa —"})); sel.disabled = true; }
+  var outras = state.locais.filter(function(l){return l.ativa && l.codigo!==p.local});
+  // começa sem nada selecionado e o "Mover" só libera depois de escolher —
+  // evita mover pacote pra prateleira errada sem querer.
+  sel.appendChild(el("option",{value:"", text:outras.length ? "Escolher…" : "— sem outra ativa —"}));
+  outras.forEach(function(l){ sel.appendChild(el("option",{value:l.codigo, text:l.codigo})) });
+  sel.value = "";
+  if(!outras.length) sel.disabled = true;
   var btn = el("button",{type:"button", class:"btn btn-ghost", style:"padding:6px 11px;font-size:12px", text:"Mover"});
-  if(sel.disabled) btn.disabled = true;
+  btn.disabled = true;
+  sel.addEventListener("change", function(){ btn.disabled = !sel.value });
   btn.addEventListener("click", async function(){
     var novo = sel.value; if(!novo) return;
     btn.disabled = true;
